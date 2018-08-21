@@ -31,6 +31,7 @@ type Transaction interface {
 	Set(key, value []byte)
 	Delete(key []byte)
 	Commit()
+	Discard()
 }
 
 type Iterator interface {

@@ -256,6 +256,10 @@ func (transaction *badgerTransaction) Commit() {
 	}
 }
 
+func (transaction *badgerTransaction) Discard() {
+	transaction.tx.Discard()
+}
+
 //=========================================================
 // Iterator Implementation
 //=========================================================
