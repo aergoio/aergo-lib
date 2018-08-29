@@ -94,7 +94,7 @@ func initLog() {
 	// StampMicro = "Jan _2 15:04:05.000000"
 	// StampNano  = "Jan _2 15:04:05.000000000"
 
-	zerolog.TimeFieldFormat = viperConf.GetString("timefieldforamt")
+	zerolog.TimeFieldFormat = viperConf.GetString("timefieldformat")
 
 	// set a base log level
 	level := viperConf.GetString("level")
