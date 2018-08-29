@@ -88,6 +88,21 @@ func TestTransactionSet(t *testing.T) {
 		// after commit, the value visible from the db
 		assert.Equal(t, tmpDbTestStrVal1, string(db.Get([]byte(tmpDbTestKey1))), db.Type())
 
+		// discard test
+		tx = db.NewTx(true)
+		// set the value in the tx
+		tx.Set([]byte(tmpDbTestKey1), []byte(tmpDbTestStrVal2))
+		// the value now has a value in the tx context
+		assert.Equal(t, tmpDbTestStrVal2, string(tx.Get([]byte(tmpDbTestKey1))), db.Type())
+
+		// discard tx
+		tx.Discard()
+
+		assert.Panics(t, func() { tx.Commit() }, "commit after discard is not allowed")
+
+		// after discard, the value must be reset at the db
+		assert.Equal(t, tmpDbTestStrVal1, string(db.Get([]byte(tmpDbTestKey1))), db.Type())
+
 		db.Close()
 		os.RemoveAll(dir)
 	}
