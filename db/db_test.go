@@ -23,7 +23,7 @@ const (
 	tmpDbTestIntVal2 = 2
 )
 
-func createTmpDB(key DBImplType) (dir string, db DB) {
+func createTmpDB(key ImplType) (dir string, db DB) {
 	dir, err := ioutil.TempDir("", string(key))
 	if err != nil {
 		log.Fatal(err)

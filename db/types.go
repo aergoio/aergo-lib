@@ -5,14 +5,17 @@
 
 package db
 
-type DBImplType string
+// ImplType represents implementators of a DB interface
+type ImplType string
 
 const (
-	BadgerImpl DBImplType = "badgerdb"
+	// BadgerImpl represents a name of DB interface implementation using badgerdb
+	BadgerImpl ImplType = "badgerdb"
 )
 
 type dbConstructor func(dir string) (DB, error)
 
+// DB is an general interface to access at storage data
 type DB interface {
 	Type() string
 	Set(key, value []byte)
@@ -26,6 +29,7 @@ type DB interface {
 	//Stats() map[string]string
 }
 
+// Transaction is used to batch multiple operations
 type Transaction interface {
 	Get(key []byte) []byte
 	Set(key, value []byte)
@@ -34,6 +38,7 @@ type Transaction interface {
 	Discard()
 }
 
+// Iterator is used to navigate specific key ranges
 type Iterator interface {
 	Next()
 	Valid() bool

@@ -56,14 +56,14 @@ package db
 
 import "fmt"
 
-var dbImpls = map[DBImplType]dbConstructor{}
+var dbImpls = map[ImplType]dbConstructor{}
 
-func registorDBConstructor(dbimpl DBImplType, constructor dbConstructor) {
+func registorDBConstructor(dbimpl ImplType, constructor dbConstructor) {
 	dbImpls[dbimpl] = constructor
 }
 
 // NewDB creates new database or load existing database in the directory
-func NewDB(dbimpltype DBImplType, dir string) DB {
+func NewDB(dbimpltype ImplType, dir string) DB {
 	db, err := dbImpls[dbimpltype](dir)
 
 	if err != nil {

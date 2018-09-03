@@ -45,6 +45,8 @@ func (db *badgerDB) runBadgerGC() {
 	}
 }
 
+// NewBadgerDB create a DB instance that uses badger db and implements DB interface.
+// An input parameter, dir, is a root directory to store db files.
 func NewBadgerDB(dir string) (DB, error) {
 	// set option file
 	opts := badger.DefaultOptions

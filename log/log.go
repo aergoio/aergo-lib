@@ -35,6 +35,8 @@ However fields are optional. Even if you don't set some of them, logger will wor
  [sub_module_name]
  level = "error"
 
+ [can_have_multiple_module]
+ level = "debug"
 
 After creating a log configuration file, you must locate that to a same directory where binary file is.
 Or you can register the config file path at an environment variable 'arglib_logconfig'.
@@ -152,10 +154,14 @@ func initLog() {
 		}
 	}
 
+	// create logger by attaching a timestamp and setting a level
 	baseLogger = baseLogger.With().Timestamp().Logger().Level(zLevel)
 	baseLevel = zLevel
 }
 
+// NewLogger creates and returns new logger using a current setting.
+// To classify and debug easily, this gets moduleName and
+// makes all co-responding sources have a same tag 'module'
 func NewLogger(moduleName string) *Logger {
 	logInitLock.Lock()
 	defer logInitLock.Unlock()
@@ -192,6 +198,7 @@ func NewLogger(moduleName string) *Logger {
 	}
 }
 
+// Default returns a defulat logger. this logger does not have a module name.
 func Default() *Logger {
 	logInitLock.Lock()
 	defer logInitLock.Unlock()
@@ -209,10 +216,13 @@ func Default() *Logger {
 	}
 }
 
+// IsDebugEnabled is used to check whether this logger's level is debug or not.
+// This helps to prevent heavy computation to generate debug log statements.
 func (logger *Logger) IsDebugEnabled() bool {
 	return baseLevel == zerolog.DebugLevel
 }
 
+// Logger keeps configrations, and provides a funcs to print logs.
 type Logger struct {
 	*zerolog.Logger
 	name  string

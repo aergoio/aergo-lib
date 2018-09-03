@@ -23,6 +23,8 @@ func DoLazyEval(c func() string) LazyEval {
 	return LazyEval(c)
 }
 
+// SkipCaller returns caller's location (file and line) to help debug.
+// This passes a skip number, which is given by an arg, of callers
 func SkipCaller(skip int) string {
 	_, file, line, ok := runtime.Caller(skip)
 	if !ok {
