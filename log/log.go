@@ -1,3 +1,45 @@
+/**
+ *  @file
+ *  @copyright defined in aergo/LICENSE.txt
+ */
+
+/*
+Package log is a global and configurable logger pkg, based on zerolog (https://github.com/rs/zerolog)
+
+You can congifure this logger using a toml configuration file. Here is an example configuration that has all available fields.
+However fields are optional. Even if you don't set some of them, logger will work well with a default value.
+
+ # A default log level for all sub modules
+ # must be one of this; debug/info/warn/error/fatal/panic
+ level = "info"
+
+ # A log output formatter
+ # can be choosen among this; console, console_no_color, json
+ formatter = "json"
+
+ # Enabling source file and line printer
+ caller = false
+
+ # A time stamp field format.
+ # e.g. in a time/format.go file
+ # ANSIC       = "Mon Jan _2 15:04:05 2006"
+ # RFC822      = "02 Jan 06 15:04 MST"
+ # RFC1123     = "Mon, 02 Jan 2006 15:04:05 MST"
+ # Kitchen     = "3:04PM"
+ # Stamp       = "Jan _2 15:04:05"
+ timefieldformat = "3:04 PM"
+
+ # If there is a sub module and it has deferent options from defaults,
+ # sub modules can be configed using a map struct of toml
+ # currently, only setting sub modules's level is allowed
+ [sub_module_name]
+ level = "error"
+
+
+After creating a log configuration file, you must locate that to a same directory where binary file is.
+Or you can register the config file path at an environment variable 'arglib_logconfig'.
+Because this pkg is initialized at very early stage, faster than init() func, there is no way to get an arguments.
+*/
 package log
 
 import (

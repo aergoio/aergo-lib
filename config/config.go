@@ -3,6 +3,46 @@
  *  @copyright defined in aergo/LICENSE.txt
  */
 
+/*
+Package config provides an easy way to create and manage configurations for aergo projects written in go.
+
+By extending 'IContext' interface, developers can easily use a porject-specific configurations.
+It requires to provide base information.
+
+ type IContext interface {
+	GetDefaultConfig() interface{} //a default config struct filled with default values
+	GetHomePath() string // a default home path
+	GetConfigFileName() string // a config file name
+	GetTemplate() string // a default toml config file template.
+ }
+
+Internally, the pkg has functions to find and manage a configuration file,
+and automatically generates toml file using the template, if the file does not exist.
+The template is filled with default values of GetDefaultConfig()
+The template must follow this format
+
+ string_type = "{{.STRUCT.FILED}}"
+ bool/number_type = {{.STRUCT.FILED}}
+ string_array_type = [{{range .STRUCT.FILED}}
+ "{{.}}", {{end}}
+ ]
+ bool/number_array_type = [{{range .STRUCT.FILED}}
+ {{.}}, {{end}}
+ ]
+ map = does not support
+
+ [substruct]
+ field_in_substruct = ...
+ ...
+
+.STRUCT and .FIELD must have a same name with a matched exported struct or field.
+You can find a detail example at a 'config_test.go' file.
+
+If there exists multiple configration files, a priorty is
+ 1. filename given using a flag
+ 2. home set at env
+ 3. a default os home dir'
+*/
 package config
 
 import (
