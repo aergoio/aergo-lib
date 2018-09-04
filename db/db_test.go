@@ -48,18 +48,28 @@ func setInitData(db DB) {
 	tx.Commit()
 }
 
-func TestGetSet(t *testing.T) {
+func TestGetSetDeleteExist(t *testing.T) {
 	// for each db implementation
 	for key := range dbImpls {
 		dir, db := createTmpDB(key)
 
-		//initial value of empty key  must be empty byte
+		// initial value of empty key must be empty byte
 		assert.Empty(t, db.Get([]byte(tmpDbTestKey1)), db.Type())
+		assert.False(t, db.Exist([]byte(tmpDbTestKey1)), db.Type())
 
 		// set value
 		db.Set([]byte(tmpDbTestKey1), []byte(tmpDbTestStrVal1))
 
+		// check value set
 		assert.Equal(t, tmpDbTestStrVal1, string(db.Get([]byte(tmpDbTestKey1))), db.Type())
+		assert.True(t, db.Exist([]byte(tmpDbTestKey1)), db.Type())
+
+		// delete value
+		db.Delete([]byte(tmpDbTestKey1))
+
+		// value must be erased
+		assert.Empty(t, db.Get([]byte(tmpDbTestKey1)), db.Type())
+		assert.False(t, db.Exist([]byte(tmpDbTestKey1)), db.Type())
 
 		db.Close()
 		os.RemoveAll(dir)
@@ -88,6 +98,18 @@ func TestTransactionSet(t *testing.T) {
 		// after commit, the value visible from the db
 		assert.Equal(t, tmpDbTestStrVal1, string(db.Get([]byte(tmpDbTestKey1))), db.Type())
 
+		db.Close()
+		os.RemoveAll(dir)
+	}
+}
+
+func TestTransactionDiscard(t *testing.T) {
+
+	for key := range dbImpls {
+		dir, db := createTmpDB(key)
+
+		// create a new writable tx
+		tx := db.NewTx(true)
 		// discard test
 		tx = db.NewTx(true)
 		// set the value in the tx
@@ -101,7 +123,35 @@ func TestTransactionSet(t *testing.T) {
 		assert.Panics(t, func() { tx.Commit() }, "commit after discard is not allowed")
 
 		// after discard, the value must be reset at the db
-		assert.Equal(t, tmpDbTestStrVal1, string(db.Get([]byte(tmpDbTestKey1))), db.Type())
+		assert.False(t, db.Exist([]byte(tmpDbTestKey1)), db.Type())
+
+		db.Close()
+		os.RemoveAll(dir)
+	}
+}
+
+func TestTransactionDelete(t *testing.T) {
+
+	for key := range dbImpls {
+		dir, db := createTmpDB(key)
+
+		// create a new writable tx
+		tx := db.NewTx(true)
+
+		// set the value in the tx
+		tx.Set([]byte(tmpDbTestKey1), []byte(tmpDbTestStrVal1))
+		// the value now has a value in the tx context
+		assert.Equal(t, tmpDbTestStrVal1, string(tx.Get([]byte(tmpDbTestKey1))), db.Type())
+
+		// delete the value in the tx
+		tx.Delete([]byte(tmpDbTestKey1))
+		// the value now have to be empty in the tx
+		assert.Equal(t, "", string(tx.Get([]byte(tmpDbTestKey1))), db.Type())
+
+		tx.Commit()
+
+		// after commit, chekc the value from the db
+		assert.Equal(t, "", string(db.Get([]byte(tmpDbTestKey1))), db.Type())
 
 		db.Close()
 		os.RemoveAll(dir)
@@ -156,6 +206,7 @@ func TestRangeIter(t *testing.T) {
 		i := 2
 		for iter := db.Iterator([]byte("2"), []byte("5")); iter.Valid(); iter.Next() {
 			assert.EqualValues(t, strconv.Itoa(i), string(iter.Key()))
+			assert.EqualValues(t, strconv.Itoa(i), string(iter.Value()))
 			i++
 		}
 		assert.EqualValues(t, i, 5)
@@ -165,6 +216,7 @@ func TestRangeIter(t *testing.T) {
 		i = 1
 		for iter := db.Iterator(nil, []byte("5")); iter.Valid(); iter.Next() {
 			assert.EqualValues(t, strconv.Itoa(i), string(iter.Key()))
+			assert.EqualValues(t, strconv.Itoa(i), string(iter.Value()))
 			i++
 		}
 		assert.EqualValues(t, i, 5)
@@ -172,7 +224,6 @@ func TestRangeIter(t *testing.T) {
 		db.Close()
 		os.RemoveAll(dir)
 	}
-
 }
 
 func TestReverseIter(t *testing.T) {
@@ -186,6 +237,7 @@ func TestReverseIter(t *testing.T) {
 		i := 5
 		for iter := db.Iterator([]byte("5"), []byte("2")); iter.Valid(); iter.Next() {
 			assert.EqualValues(t, strconv.Itoa(i), string(iter.Key()))
+			assert.EqualValues(t, strconv.Itoa(i), string(iter.Value()))
 			i--
 		}
 		assert.EqualValues(t, i, 2)
@@ -195,6 +247,7 @@ func TestReverseIter(t *testing.T) {
 		i = 5
 		for iter := db.Iterator([]byte("5"), nil); iter.Valid(); iter.Next() {
 			assert.EqualValues(t, strconv.Itoa(i), string(iter.Key()))
+			assert.EqualValues(t, strconv.Itoa(i), string(iter.Value()))
 			i--
 		}
 		assert.EqualValues(t, i, 0)
