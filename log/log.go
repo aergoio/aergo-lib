@@ -14,7 +14,7 @@ However fields are optional. Even if you don't set some of them, logger will wor
  level = "info"
 
  # A log output formatter
- # can be choosen among this; console, console_no_color, json
+ # can be chosen among this; console, console_no_color, json
  formatter = "json"
 
  # Enabling source file and line printer
@@ -178,6 +178,7 @@ func NewLogger(moduleName string) *Logger {
 
 	// try to load sub config
 	var zLevel zerolog.Level
+	zLevel = baseLevel
 	subViperConf := viperConf.Sub(moduleName)
 	if subViperConf != nil {
 		level := subViperConf.GetString("level")
@@ -220,6 +221,11 @@ func Default() *Logger {
 // This helps to prevent heavy computation to generate debug log statements.
 func (logger *Logger) IsDebugEnabled() bool {
 	return baseLevel == zerolog.DebugLevel
+}
+
+// Level returns current logger level
+func (logger *Logger) Level() string {
+	return logger.level.String()
 }
 
 // Logger keeps configrations, and provides a funcs to print logs.
