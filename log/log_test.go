@@ -40,8 +40,9 @@ func createConfigAndSetEnv(text string) error {
 	}
 
 	// set environment var
-	os.Unsetenv("arglib_logconfig")
-	os.Setenv("arglib_logconfig", tmpfile.Name())
+	envKey := confEnvPrefix + "_" + confFilePathKey
+	os.Unsetenv(envKey)
+	os.Setenv(envKey, tmpfile.Name())
 
 	return nil
 }

@@ -59,8 +59,8 @@ var logInitLock sync.Mutex
 var isLogInit = false
 var viperConf = viper.New()
 
-var confFilePathKey = "logconfig"
-var confEnvPrefix = "arglib"
+var confFilePathKey = "LOGCONFIG"
+var confEnvPrefix = "ARGLIB"
 var defaultConfFileName = "arglog"
 
 func loadConfigFile() *viper.Viper {
