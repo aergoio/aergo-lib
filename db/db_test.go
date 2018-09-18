@@ -35,7 +35,7 @@ func createTmpDB(key ImplType) (dir string, db DB) {
 }
 
 func setInitData(db DB) {
-	tx := db.NewTx(true)
+	tx := db.NewTx()
 
 	tx.Set([]byte("1"), []byte("1"))
 	tx.Set([]byte("2"), []byte("2"))
@@ -82,14 +82,10 @@ func TestTransactionSet(t *testing.T) {
 		dir, db := createTmpDB(key)
 
 		// create a new writable tx
-		tx := db.NewTx(true)
-		// in the tx, an unsetted value must be empty byte
-		assert.Empty(t, tx.Get([]byte(tmpDbTestKey1)), db.Type())
+		tx := db.NewTx()
 
 		// set the value in the tx
 		tx.Set([]byte(tmpDbTestKey1), []byte(tmpDbTestStrVal1))
-		// the value now has a value in the tx context
-		assert.Equal(t, tmpDbTestStrVal1, string(tx.Get([]byte(tmpDbTestKey1))), db.Type())
 		// the value will not visible at a db
 		assert.Empty(t, db.Get([]byte(tmpDbTestKey1)), db.Type())
 
@@ -109,13 +105,11 @@ func TestTransactionDiscard(t *testing.T) {
 		dir, db := createTmpDB(key)
 
 		// create a new writable tx
-		tx := db.NewTx(true)
+		tx := db.NewTx()
 		// discard test
-		tx = db.NewTx(true)
+		tx = db.NewTx()
 		// set the value in the tx
 		tx.Set([]byte(tmpDbTestKey1), []byte(tmpDbTestStrVal2))
-		// the value now has a value in the tx context
-		assert.Equal(t, tmpDbTestStrVal2, string(tx.Get([]byte(tmpDbTestKey1))), db.Type())
 
 		// discard tx
 		tx.Discard()
@@ -136,17 +130,13 @@ func TestTransactionDelete(t *testing.T) {
 		dir, db := createTmpDB(key)
 
 		// create a new writable tx
-		tx := db.NewTx(true)
+		tx := db.NewTx()
 
 		// set the value in the tx
 		tx.Set([]byte(tmpDbTestKey1), []byte(tmpDbTestStrVal1))
-		// the value now has a value in the tx context
-		assert.Equal(t, tmpDbTestStrVal1, string(tx.Get([]byte(tmpDbTestKey1))), db.Type())
 
 		// delete the value in the tx
 		tx.Delete([]byte(tmpDbTestKey1))
-		// the value now have to be empty in the tx
-		assert.Equal(t, "", string(tx.Get([]byte(tmpDbTestKey1))), db.Type())
 
 		tx.Commit()
 
@@ -163,7 +153,7 @@ func TestTransactionCommitTwice(t *testing.T) {
 		dir, db := createTmpDB(key)
 
 		// create a new writable tx
-		tx := db.NewTx(true)
+		tx := db.NewTx()
 
 		// a first commit will success
 		tx.Commit()

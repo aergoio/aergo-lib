@@ -17,7 +17,7 @@ import (
 
 const (
 	badgerDbDiscardRatio = 0.5
-	badgerDbGcInterval   = 10 * time.Minute
+	badgerDbGcInterval   = 5 * time.Minute
 )
 
 // This function is always called first
@@ -33,12 +33,9 @@ func (db *badgerDB) runBadgerGC() {
 	for {
 		select {
 		case <-ticker.C:
-			err := db.db.RunValueLogGC(badgerDbDiscardRatio)
 
-			if err != badger.ErrNoRewrite {
-				panic(err)
-			}
-
+			db.db.RunValueLogGC(badgerDbDiscardRatio)
+			// remove panic on ErrNoRewrite
 		case <-db.ctx.Done():
 			return
 		}
@@ -59,7 +56,6 @@ func NewBadgerDB(dir string) (DB, error) {
 
 	// open badger db
 	db, err := badger.Open(opts)
-
 	if err != nil {
 		return nil, err
 	}
@@ -180,15 +176,14 @@ func (db *badgerDB) Exist(key []byte) bool {
 func (db *badgerDB) Close() {
 
 	db.cancelFunc() // wait until gc goroutine is finished
-
 	err := db.db.Close()
 	if err != nil {
 		panic(fmt.Sprintf("Database Error: %v", err))
 	}
 }
 
-func (db *badgerDB) NewTx(writable bool) Transaction {
-	badgerTx := db.db.NewTransaction(writable)
+func (db *badgerDB) NewTx() Transaction {
+	badgerTx := db.db.NewTransaction(true)
 
 	retTransaction := &badgerTransaction{
 		db: db,
@@ -207,6 +202,7 @@ type badgerTransaction struct {
 	tx *badger.Txn
 }
 
+/*
 func (transaction *badgerTransaction) Get(key []byte) []byte {
 	key = convNilToBytes(key)
 
@@ -227,7 +223,7 @@ func (transaction *badgerTransaction) Get(key []byte) []byte {
 
 	return val
 }
-
+*/
 func (transaction *badgerTransaction) Set(key, value []byte) {
 	// TODO Updating trie nodes may require many updates but ErrTxnTooBig is not handled
 	key = convNilToBytes(key)
@@ -305,6 +301,8 @@ func (db *badgerDB) Iterator(start, end []byte) Iterator {
 func (iter *badgerIterator) Next() {
 	if iter.Valid() {
 		iter.iter.Next()
+	} else {
+		panic("Iterator is Invalid")
 	}
 }
 

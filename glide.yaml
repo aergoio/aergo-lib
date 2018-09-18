@@ -16,3 +16,5 @@ testImport:
   subpackages:
   - assert
   - suite
+- package: github.com/guptarohit/asciigraph
+  version: ^0.4.1 

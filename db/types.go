@@ -11,6 +11,9 @@ type ImplType string
 const (
 	// BadgerImpl represents a name of DB interface implementation using badgerdb
 	BadgerImpl ImplType = "badgerdb"
+
+	// LevelImpl represents a name of DB interface implementation using leveldb
+	LevelImpl ImplType = "leveldb"
 )
 
 type dbConstructor func(dir string) (DB, error)
@@ -23,7 +26,7 @@ type DB interface {
 	Get(key []byte) []byte
 	Exist(key []byte) bool
 	Iterator(start, end []byte) Iterator
-	NewTx(writable bool) Transaction
+	NewTx() Transaction
 	Close()
 	//Print()
 	//Stats() map[string]string
@@ -31,7 +34,7 @@ type DB interface {
 
 // Transaction is used to batch multiple operations
 type Transaction interface {
-	Get(key []byte) []byte
+	//	Get(key []byte) []byte
 	Set(key, value []byte)
 	Delete(key []byte)
 	Commit()
