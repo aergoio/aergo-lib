@@ -22,10 +22,10 @@ type testKeyType int64
 var valueLen = 256
 var testSetSize = int64(10000000)
 var batchSize = 1000
-var dbDirPath = ""
+var dbDirPath = "e:/tmp"
 
-var writeIter = 20000 //200000
-var readIter = 100000 //1000000
+var writeIter = 20000  //200000
+var readIter = 1000000 //1000000
 
 // parameters for drawing graph
 var samplingRate = 1
@@ -118,7 +118,7 @@ func main() {
 		internal[testKeyType(i)] = token
 	}
 
-	tmpDir, _ := ioutil.TempDir(dbDirPath, "dbtest")
+	tmpDir, _ := ioutil.TempDir(dbDirPath, argsWithoutProg[0])
 	dbType := db.ImplType(argsWithoutProg[0])
 	var dbInstance db.DB
 	{
