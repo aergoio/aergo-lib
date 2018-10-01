@@ -1,10 +1,10 @@
-hash: 78382a3ce15354b8f136528426a0d4752c3e1b64e118247e6d2cf797f46e82fa
-updated: 2018-09-18T13:34:37.3319235+09:00
+hash: e7d60b5d7d3ca02d8b91b586b98e51b04ab3901f03b12d247e666c7deb1c9dc1
+updated: 2018-10-01T17:17:12.2035206+09:00
 imports:
 - name: github.com/AndreasBriese/bbloom
-  version: 28f7e881ca57bc00e028f9ede9f0d9104cfeef5e
+  version: 343706a395b76e5ca5c7dca46a5d937b48febc74
 - name: github.com/dgraph-io/badger
-  version: 391b6d3b93e6014fe8c2971fcc0c1266e47dbbd9
+  version: 99233d725dbdd26d156c61b2f42ae1671b794656
   subpackages:
   - options
   - protos
@@ -16,13 +16,15 @@ imports:
 - name: github.com/fsnotify/fsnotify
   version: ccc981bf80385c528a65fbfdd49bf2d8da22aa23
 - name: github.com/golang/protobuf
-  version: b4deda0973fb4c70b50d226b1af49f3da59f5265
+  version: 7011d38ac0d201eeddff4a4085a657c3da322d75
   subpackages:
   - proto
 - name: github.com/golang/snappy
   version: 2e65f85255dbc3072edf28d6b5b8efc472979f5a
+- name: github.com/guptarohit/asciigraph
+  version: b8c6bd8cace5d89062a57acb2012b0be08fb9525
 - name: github.com/hashicorp/hcl
-  version: 8cb6e5b959231cc1119e43259c4a608f9c51a241
+  version: 65a6292f0157eff210d03ed1bf6c59b190b8b906
   subpackages:
   - hcl/ast
   - hcl/parser
@@ -36,28 +38,28 @@ imports:
 - name: github.com/magiconair/properties
   version: c2353362d570a7bfa228149c62842019201cfb71
 - name: github.com/mitchellh/mapstructure
-  version: fa473d140ef3c6adf42d6b391fe76707f1f243c8
+  version: 5a380f224700b8a6c4eaad048804f5bff514cb35
 - name: github.com/pelletier/go-toml
-  version: c2dbbc24a97911339e01bda0b8cabdbd8f13b602
+  version: 81a861c69d25a841d0c4394f0e6f84bc8c5afae0
 - name: github.com/pkg/errors
-  version: 816c9085562cd7ee03e7f8188a1cfd942858cded
+  version: c059e472caf75dbe73903f6521a20abac245b17f
 - name: github.com/rs/zerolog
-  version: 77db4b4f350e31be66a57c332acb7721cf9ff9bb
+  version: 338f9bc14084d22cb8eeacd6492861f8449d715c
   subpackages:
   - internal/cbor
   - internal/json
 - name: github.com/spf13/afero
-  version: 787d034dfe70e44075ccc060d346146ef53270ad
+  version: d40851caa0d747393da1ffb28f7f9d8b4eeffebd
   subpackages:
   - mem
 - name: github.com/spf13/cast
   version: 8965335b8c7107321228e3e3702cab9832751bac
 - name: github.com/spf13/jwalterweatherman
-  version: 14d3d4c518341bea657dd8a226f5121c0ff8c9f2
+  version: 4a4406e478ca629068e7768fc33f3f044173c0a6
 - name: github.com/spf13/pflag
   version: 9a97c102cda95a86cec2345a6f09f55a939babf5
 - name: github.com/spf13/viper
-  version: 8fb642006536c8d3760c99d4fa2389f5e2205631
+  version: 2c12c60302a5a0e62ee102ca9bc996277c2f64f5
 - name: github.com/syndtr/goleveldb
   version: ae2bd5eed72d46b28834ec3f60db3a3ebedd8dbd
   subpackages:
@@ -74,17 +76,17 @@ imports:
   - leveldb/table
   - leveldb/util
 - name: golang.org/x/net
-  version: 8a410e7b638dca158bf9e766925842f6651ff828
+  version: 4dfa2610cdf3b287375bbba5b8f2a14d3b01d8de
   subpackages:
   - context
   - internal/timeseries
   - trace
 - name: golang.org/x/sys
-  version: ebe1bf3edb3325c393447059974de898d5133eb8
+  version: e4b3c5e9061176387e7cea65e4dc5853801f3fb7
   subpackages:
   - unix
 - name: golang.org/x/text
-  version: 6e3c4e7365ddcc329f090f96e4348398f6310088
+  version: 905a57155faa8230500121607930ebb9dd8e139c
   subpackages:
   - transform
   - unicode/norm
@@ -92,11 +94,9 @@ imports:
   version: 5420a8b6744d3b0345ab293f6fcba19c978f1183
 testImports:
 - name: github.com/davecgh/go-spew
-  version: 8991bc29aa16c548c550c7ff78260e27b9ab7c73
+  version: d8f796af33cc11cb798c1aaeb27a4ebc5099927d
   subpackages:
   - spew
-- name: github.com/guptarohit/asciigraph
-  version: b8c6bd8cace5d89062a57acb2012b0be08fb9525
 - name: github.com/pmezard/go-difflib
   version: 792786c7400a136282c1664665ae0a8db921c6c2
   subpackages:
