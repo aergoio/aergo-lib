@@ -1,7 +1,7 @@
 package: github.com/aergoio/aergo-lib
 import:
-- package: github.com/dgraph-io/badger
-  version: ^1.5.3
+- package: github.com/sunpuyo/badger
+  version: hotfix
   subpackages:
   - options
 - package: github.com/rs/zerolog

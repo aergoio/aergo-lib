@@ -54,9 +54,14 @@ You can find more detail usages at a db_test.go file
 */
 package db
 
-import "fmt"
+import (
+	"fmt"
+
+	"github.com/aergoio/aergo-lib/log"
+)
 
 var dbImpls = map[ImplType]dbConstructor{}
+var logger = log.NewLogger("db")
 
 func registorDBConstructor(dbimpl ImplType, constructor dbConstructor) {
 	dbImpls[dbimpl] = constructor

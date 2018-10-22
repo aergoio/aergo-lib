@@ -16,8 +16,9 @@ import (
 )
 
 const (
-	badgerDbDiscardRatio = 0.5
-	badgerDbGcInterval   = 5 * time.Minute
+	badgerDbDiscardRatio = 0.1 // run gc when 10% of samples can be collected
+	badgerDbGcInterval   = 1 * time.Minute
+	badgerDbGcSize       = 1 << 20 // 1 MB
 )
 
 // This function is always called first
@@ -29,13 +30,34 @@ func init() {
 }
 
 func (db *badgerDB) runBadgerGC() {
-	ticker := time.NewTicker(badgerDbGcInterval)
+	ticker := time.NewTicker(10 * time.Second)
+
+	lastGcT := time.Now()
+	_, lastDbVlogSize := db.db.Size()
 	for {
 		select {
 		case <-ticker.C:
+			// check current db size
+			_, currentDbVlogSize := db.db.Size()
 
-			db.db.RunValueLogGC(badgerDbDiscardRatio)
-			// remove panic on ErrNoRewrite
+			// exceed badgerDbGcInterval time or badgerDbGcSize is increase slowly (it means resource is free)
+			if time.Now().Sub(lastGcT) > badgerDbGcInterval || lastDbVlogSize+badgerDbGcSize > currentDbVlogSize {
+				startGcT := time.Now()
+				err := db.db.RunValueLogGC(badgerDbDiscardRatio)
+				if err != nil {
+					if err == badger.ErrNoRewrite {
+						logger.Debug().Err(err).Msg("Nothing to GC at badger")
+					} else {
+						logger.Error().Err(err).Msg("Fail to GC at badger")
+					}
+				} else {
+					lastGcT = time.Now()
+					_, afterGcDbVlogSize := db.db.Size()
+
+					logger.Debug().Dur("takenTime", time.Now().Sub(startGcT)).Int64("gcBytes", currentDbVlogSize-afterGcDbVlogSize).Msg("Run GC at badger")
+				}
+			}
+
 		case <-db.ctx.Done():
 			return
 		}
@@ -53,6 +75,8 @@ func NewBadgerDB(dir string) (DB, error) {
 	// Quick fix to prevent RAM usage from going to the roof when adding 10Million new keys during tests
 	opts.ValueLogLoadingMode = options.FileIO
 	opts.TableLoadingMode = options.FileIO
+
+	opts.MaxTableSize = 1 << 20 // 2 ^ 20 = 1048576, max mempool size invokes updating vlog header for gc
 
 	// open badger db
 	db, err := badger.Open(opts)
@@ -127,7 +151,7 @@ func (db *badgerDB) Get(key []byte) []byte {
 			return err
 		}
 
-		getVal, err := item.Value()
+		getVal, err := item.ValueCopy(nil)
 		if err != nil {
 			return err
 		}
@@ -246,7 +270,7 @@ func (transaction *badgerTransaction) Delete(key []byte) {
 }
 
 func (transaction *badgerTransaction) Commit() {
-	err := transaction.tx.Commit(nil)
+	err := transaction.tx.Commit()
 
 	if err != nil {
 		//TODO if there is conflict during commit, this panic will occurs
@@ -332,7 +356,7 @@ func (iter *badgerIterator) Key() (key []byte) {
 }
 
 func (iter *badgerIterator) Value() (value []byte) {
-	retVal, err := iter.iter.Item().Value()
+	retVal, err := iter.iter.Item().ValueCopy(nil)
 
 	if err != nil {
 		//FIXME: test and handle errs

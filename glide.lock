@@ -1,10 +1,10 @@
-hash: e7d60b5d7d3ca02d8b91b586b98e51b04ab3901f03b12d247e666c7deb1c9dc1
-updated: 2018-10-01T17:17:12.2035206+09:00
+hash: 2c8d4353e6f13b1a2af12615171d98ccb1a84ff8b27a882179eb1fd9d8d89ba3
+updated: 2018-10-22T20:04:40.9614953+09:00
 imports:
 - name: github.com/AndreasBriese/bbloom
   version: 343706a395b76e5ca5c7dca46a5d937b48febc74
 - name: github.com/dgraph-io/badger
-  version: 99233d725dbdd26d156c61b2f42ae1671b794656
+  version: fbb27786246d20213f31bad8bf33f1504837029f
   subpackages:
   - options
   - protos
@@ -16,7 +16,7 @@ imports:
 - name: github.com/fsnotify/fsnotify
   version: ccc981bf80385c528a65fbfdd49bf2d8da22aa23
 - name: github.com/golang/protobuf
-  version: 7011d38ac0d201eeddff4a4085a657c3da322d75
+  version: 7be3631955993a734965532f776bad7093f6fc9d
   subpackages:
   - proto
 - name: github.com/golang/snappy
@@ -38,11 +38,11 @@ imports:
 - name: github.com/magiconair/properties
   version: c2353362d570a7bfa228149c62842019201cfb71
 - name: github.com/mitchellh/mapstructure
-  version: 5a380f224700b8a6c4eaad048804f5bff514cb35
+  version: 3536a929edddb9a5b34bd6861dc4a9647cb459fe
 - name: github.com/pelletier/go-toml
   version: 81a861c69d25a841d0c4394f0e6f84bc8c5afae0
 - name: github.com/pkg/errors
-  version: c059e472caf75dbe73903f6521a20abac245b17f
+  version: d58f94251046e7f70ac45aceea6cf6f61415ccca
 - name: github.com/rs/zerolog
   version: 338f9bc14084d22cb8eeacd6492861f8449d715c
   subpackages:
@@ -53,15 +53,19 @@ imports:
   subpackages:
   - mem
 - name: github.com/spf13/cast
-  version: 8965335b8c7107321228e3e3702cab9832751bac
+  version: efb632f0f61348654b631fd11da5ff457a5ca2ef
 - name: github.com/spf13/jwalterweatherman
-  version: 4a4406e478ca629068e7768fc33f3f044173c0a6
+  version: 103a6da826d08544f49833dabd4f1cdf8a1038bb
 - name: github.com/spf13/pflag
-  version: 9a97c102cda95a86cec2345a6f09f55a939babf5
+  version: 298182f68c66c05229eb03ac171abe6e309ee79a
 - name: github.com/spf13/viper
   version: 2c12c60302a5a0e62ee102ca9bc996277c2f64f5
+- name: github.com/sunpuyo/badger
+  version: f29de191a8e1a4e988e23762d188b5e7c0b3322d
+  subpackages:
+  - options
 - name: github.com/syndtr/goleveldb
-  version: ae2bd5eed72d46b28834ec3f60db3a3ebedd8dbd
+  version: 6b91fda63f2e36186f1c9d0e48578defb69c5d43
   subpackages:
   - leveldb
   - leveldb/cache
@@ -76,17 +80,17 @@ imports:
   - leveldb/table
   - leveldb/util
 - name: golang.org/x/net
-  version: 4dfa2610cdf3b287375bbba5b8f2a14d3b01d8de
+  version: 04a2e542c03f1d053ab3e4d6e5abcd4b66e2be8e
   subpackages:
   - context
   - internal/timeseries
   - trace
 - name: golang.org/x/sys
-  version: e4b3c5e9061176387e7cea65e4dc5853801f3fb7
+  version: 8b8824e799c8fc8e6d900615cc6c761ce6c26c67
   subpackages:
   - unix
 - name: golang.org/x/text
-  version: 905a57155faa8230500121607930ebb9dd8e139c
+  version: 4d1c5fb19474adfe9562c9847ba425e7da817e81
   subpackages:
   - transform
   - unicode/norm
