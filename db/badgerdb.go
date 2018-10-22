@@ -11,8 +11,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/dgraph-io/badger"
-	"github.com/dgraph-io/badger/options"
+	"github.com/sunpuyo/badger"
+	"github.com/sunpuyo/badger/options"
 )
 
 const (

@@ -1,16 +1,8 @@
 hash: 2c8d4353e6f13b1a2af12615171d98ccb1a84ff8b27a882179eb1fd9d8d89ba3
-updated: 2018-10-22T20:04:40.9614953+09:00
+updated: 2018-10-22T21:35:37.1020735+09:00
 imports:
 - name: github.com/AndreasBriese/bbloom
   version: 343706a395b76e5ca5c7dca46a5d937b48febc74
-- name: github.com/dgraph-io/badger
-  version: fbb27786246d20213f31bad8bf33f1504837029f
-  subpackages:
-  - options
-  - protos
-  - skl
-  - table
-  - "y"
 - name: github.com/dgryski/go-farm
   version: 2de33835d10275975374b37b2dcfd22c9020a1f5
 - name: github.com/fsnotify/fsnotify
@@ -61,9 +53,13 @@ imports:
 - name: github.com/spf13/viper
   version: 2c12c60302a5a0e62ee102ca9bc996277c2f64f5
 - name: github.com/sunpuyo/badger
-  version: f29de191a8e1a4e988e23762d188b5e7c0b3322d
+  version: bb757672e2c7e90b0707ab643972dbfcf638aebf
   subpackages:
   - options
+  - protos
+  - skl
+  - table
+  - "y"
 - name: github.com/syndtr/goleveldb
   version: 6b91fda63f2e36186f1c9d0e48578defb69c5d43
   subpackages:
