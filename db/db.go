@@ -61,7 +61,7 @@ import (
 )
 
 var dbImpls = map[ImplType]dbConstructor{}
-var logger = log.NewLogger("db")
+var logger *log.Logger
 
 func registorDBConstructor(dbimpl ImplType, constructor dbConstructor) {
 	dbImpls[dbimpl] = constructor
@@ -69,6 +69,7 @@ func registorDBConstructor(dbimpl ImplType, constructor dbConstructor) {
 
 // NewDB creates new database or load existing database in the directory
 func NewDB(dbimpltype ImplType, dir string) DB {
+	logger = log.NewLogger("db")
 	db, err := dbImpls[dbimpltype](dir)
 
 	if err != nil {
