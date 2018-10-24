@@ -26,7 +26,7 @@ func init() {
 func NewMemoryDB(dir string) (DB, error) {
 	var db map[string][]byte
 
-	filePath := path.Join(dir, "dump")
+	filePath := path.Join(dir, "database")
 
 	file, err := os.Open(filePath)
 	if err == nil {
@@ -191,6 +191,7 @@ func (transaction *memoryTransaction) Commit() {
 		}
 	}
 
+	transaction.isCommit = true
 }
 
 func (transaction *memoryTransaction) Discard() {
