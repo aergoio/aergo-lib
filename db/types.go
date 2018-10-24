@@ -14,6 +14,9 @@ const (
 
 	// LevelImpl represents a name of DB interface implementation using leveldb
 	LevelImpl ImplType = "leveldb"
+
+	// MemoryImpl represents a name of DB interface implementation in memory
+	MemoryImpl ImplType = "memorydb"
 )
 
 type dbConstructor func(dir string) (DB, error)
