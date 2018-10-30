@@ -46,7 +46,7 @@ func (db *badgerDB) runBadgerGC() {
 				err := db.db.RunValueLogGC(badgerDbDiscardRatio)
 				if err != nil {
 					if err == badger.ErrNoRewrite {
-						logger.Debug().Err(err).Msg("Nothing to GC at badger")
+						logger.Debug().Str("msg", err.Error()).Msg("Nothing to GC at badger")
 					} else {
 						logger.Error().Err(err).Msg("Fail to GC at badger")
 					}
@@ -74,7 +74,7 @@ func NewBadgerDB(dir string) (DB, error) {
 	// TODO : options tuning.
 	// Quick fix to prevent RAM usage from going to the roof when adding 10Million new keys during tests
 	opts.ValueLogLoadingMode = options.FileIO
-	opts.TableLoadingMode = options.LoadToRAM
+	opts.TableLoadingMode = options.MemoryMap
 	opts.ValueThreshold = 1024 // store values, whose size is smaller than 1k, to a lsm tree -> to invoke flushing memtable
 
 	//opts.MaxTableSize = 1 << 20 // 2 ^ 20 = 1048576, max mempool size invokes updating vlog header for gc
