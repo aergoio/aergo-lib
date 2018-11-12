@@ -1,5 +1,5 @@
-hash: 2c8d4353e6f13b1a2af12615171d98ccb1a84ff8b27a882179eb1fd9d8d89ba3
-updated: 2018-10-22T21:35:37.1020735+09:00
+hash: d5d37546e32322685e46b39b876b0776d46f447600fed470c5d1af1115649385
+updated: 2018-11-12T13:13:39.8983298+09:00
 imports:
 - name: github.com/AndreasBriese/bbloom
   version: 343706a395b76e5ca5c7dca46a5d937b48febc74
@@ -8,7 +8,7 @@ imports:
 - name: github.com/fsnotify/fsnotify
   version: ccc981bf80385c528a65fbfdd49bf2d8da22aa23
 - name: github.com/golang/protobuf
-  version: 7be3631955993a734965532f776bad7093f6fc9d
+  version: b4deda0973fb4c70b50d226b1af49f3da59f5265
   subpackages:
   - proto
 - name: github.com/golang/snappy
@@ -29,14 +29,16 @@ imports:
   - json/token
 - name: github.com/magiconair/properties
   version: c2353362d570a7bfa228149c62842019201cfb71
+- name: github.com/mattn/go-colorable
+  version: 167de6bfdfba052fa6b2d3664c8f5272e23c9072
 - name: github.com/mitchellh/mapstructure
   version: 3536a929edddb9a5b34bd6861dc4a9647cb459fe
 - name: github.com/pelletier/go-toml
   version: 81a861c69d25a841d0c4394f0e6f84bc8c5afae0
 - name: github.com/pkg/errors
-  version: d58f94251046e7f70ac45aceea6cf6f61415ccca
+  version: 059132a15dd08d6704c67711dae0cf35ab991756
 - name: github.com/rs/zerolog
-  version: 338f9bc14084d22cb8eeacd6492861f8449d715c
+  version: 8e30c7136954547e35720dbc2e5a50fd140f60af
   subpackages:
   - internal/cbor
   - internal/json
@@ -45,9 +47,9 @@ imports:
   subpackages:
   - mem
 - name: github.com/spf13/cast
-  version: efb632f0f61348654b631fd11da5ff457a5ca2ef
+  version: 8c9545af88b134710ab1cd196795e7f2388358d7
 - name: github.com/spf13/jwalterweatherman
-  version: 103a6da826d08544f49833dabd4f1cdf8a1038bb
+  version: 94f6ae3ed3bceceafa716478c5fbf8d29ca601a1
 - name: github.com/spf13/pflag
   version: 298182f68c66c05229eb03ac171abe6e309ee79a
 - name: github.com/spf13/viper
@@ -76,17 +78,17 @@ imports:
   - leveldb/table
   - leveldb/util
 - name: golang.org/x/net
-  version: 04a2e542c03f1d053ab3e4d6e5abcd4b66e2be8e
+  version: c44066c5c816ec500d459a2a324a753f78531ae0
   subpackages:
   - context
   - internal/timeseries
   - trace
 - name: golang.org/x/sys
-  version: 8b8824e799c8fc8e6d900615cc6c761ce6c26c67
+  version: 7e31e0c00fa05cb5fbf4347b585621d6709e19a4
   subpackages:
   - unix
 - name: golang.org/x/text
-  version: 4d1c5fb19474adfe9562c9847ba425e7da817e81
+  version: 6f44c5a2ea40ee3593d98cdcc905cc1fdaa660e2
   subpackages:
   - transform
   - unicode/norm
@@ -94,7 +96,7 @@ imports:
   version: 5420a8b6744d3b0345ab293f6fcba19c978f1183
 testImports:
 - name: github.com/davecgh/go-spew
-  version: d8f796af33cc11cb798c1aaeb27a4ebc5099927d
+  version: 8991bc29aa16c548c550c7ff78260e27b9ab7c73
   subpackages:
   - spew
 - name: github.com/pmezard/go-difflib

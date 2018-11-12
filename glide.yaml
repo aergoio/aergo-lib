@@ -5,13 +5,15 @@ import:
   subpackages:
   - options
 - package: github.com/rs/zerolog
-  version: ^1.8.0
+  version: ^1.10.2
 - package: github.com/spf13/pflag
   version: ^1.0.2
 - package: github.com/spf13/viper
   version: ^1.1.0
 - package: github.com/guptarohit/asciigraph
-  version: ^0.4.1 
+  version: ^0.4.1
+- package: github.com/mattn/go-colorable
+  version: ^0.0.9
 testImport:
 - package: github.com/stretchr/testify
   version: ^1.2.2

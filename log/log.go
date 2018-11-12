@@ -49,6 +49,7 @@ import (
 	"strings"
 	"sync"
 
+	colorable "github.com/mattn/go-colorable"
 	"github.com/rs/zerolog"
 	"github.com/spf13/viper"
 )
@@ -97,29 +98,6 @@ func loadConfigFile() *viper.Viper {
 
 func initLog() {
 
-	// set output writer
-	outputWriter := viperConf.GetString("formatter")
-	if outputWriter != "" {
-		switch strings.ToLower(outputWriter) {
-		case "json":
-			baseLogger = baseLogger.Output(os.Stdout)
-		case "console":
-			baseLogger = baseLogger.Output(
-				zerolog.ConsoleWriter{Out: os.Stdout, NoColor: false})
-		case "console_no_color":
-			baseLogger = baseLogger.Output(
-				zerolog.ConsoleWriter{Out: os.Stdout, NoColor: true})
-		default:
-			baseLogger.Warn().Str("formatter", outputWriter).Msg("Invalid Message Formatter. Only allowed; console/console_no_color/json")
-			baseLogger = baseLogger.Output(os.Stdout)
-		}
-	}
-
-	// set a caller print option
-	if viperConf.GetBool("caller") {
-		baseLogger = baseLogger.With().Caller().Logger()
-	}
-
 	// set timestamp format
 	// there is a nice example in time/format.go
 	// ANSIC       = "Mon Jan _2 15:04:05 2006"
@@ -138,7 +116,32 @@ func initLog() {
 	// StampMicro = "Jan _2 15:04:05.000000"
 	// StampNano  = "Jan _2 15:04:05.000000000"
 
-	zerolog.TimeFieldFormat = viperConf.GetString("timefieldformat")
+	if viperConf.GetString("timefieldformat") != "" {
+		zerolog.TimeFieldFormat = viperConf.GetString("timefieldformat")
+	}
+
+	// set output writer
+	outputWriter := viperConf.GetString("formatter")
+	if outputWriter != "" {
+		switch strings.ToLower(outputWriter) {
+		case "json":
+			baseLogger = baseLogger.Output(os.Stdout)
+		case "console":
+			baseLogger = baseLogger.Output(
+				zerolog.ConsoleWriter{Out: colorable.NewColorableStdout(), NoColor: false, TimeFormat: zerolog.TimeFieldFormat})
+		case "console_no_color":
+			baseLogger = baseLogger.Output(
+				zerolog.ConsoleWriter{Out: os.Stdout, NoColor: true, TimeFormat: zerolog.TimeFieldFormat})
+		default:
+			baseLogger.Warn().Str("formatter", outputWriter).Msg("Invalid Message Formatter. Only allowed; console/console_no_color/json")
+			baseLogger = baseLogger.Output(os.Stdout)
+		}
+	}
+
+	// set a caller print option
+	if viperConf.GetBool("caller") {
+		baseLogger = baseLogger.With().Caller().Logger()
+	}
 
 	// set a base log level
 	level := viperConf.GetString("level")
