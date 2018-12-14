@@ -64,6 +64,8 @@ var confFilePathKey = "LOGCONFIG"
 var confEnvPrefix = "ARGLIB"
 var defaultConfFileName = "arglog"
 
+var defaultConfStr = ""
+
 func loadConfigFile() *viper.Viper {
 	// init viper
 	viperConf.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
@@ -87,7 +89,9 @@ func loadConfigFile() *viper.Viper {
 	if err != nil {
 		switch err.(type) {
 		case viper.ConfigFileNotFoundError:
-			baseLogger.Info().Msg("Init Logger using a default configuration")
+			if defaultConfStr != "" {
+				viperConf.ReadConfig(strings.NewReader(defaultConfStr))
+			}
 		default:
 			baseLogger.Error().Err(err).Msg("Fail to read a logger's config file")
 		}
@@ -147,7 +151,6 @@ func initLog() {
 	level := viperConf.GetString("level")
 	var zLevel zerolog.Level
 	if level == "" {
-		baseLogger.Info().Msg("Set the level as default: info")
 		zLevel = zerolog.InfoLevel
 	} else {
 		var err error
