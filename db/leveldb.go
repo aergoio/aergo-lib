@@ -101,6 +101,12 @@ func (db *levelDB) NewTx() Transaction {
 	return &levelTransaction{db, batch, false, false}
 }
 
+func (db *levelDB) NewBulk() Bulk {
+	batch := new(leveldb.Batch)
+
+	return &levelBulk{db, batch, false, false}
+}
+
 //=========================================================
 // Transaction Implementation
 //=========================================================
@@ -141,6 +147,45 @@ func (transaction *levelTransaction) Commit() {
 
 func (transaction *levelTransaction) Discard() {
 	transaction.isDiscard = true
+}
+
+//=========================================================
+// Bulk Implementation
+//=========================================================
+
+type levelBulk struct {
+	db        *levelDB
+	tx        *leveldb.Batch
+	isDiscard bool
+	isCommit  bool
+}
+
+func (bulk *levelBulk) Set(key, value []byte) {
+	bulk.tx.Put(key, value)
+}
+
+func (bulk *levelBulk) Delete(key []byte) {
+	bulk.tx.Delete(key)
+}
+
+func (bulk *levelBulk) Flush() {
+	// do the same behavior that a transaction commit does
+	// db.write internally will handle large transaction
+	if bulk.isDiscard {
+		panic("Commit after dicard tx is not allowed")
+	} else if bulk.isCommit {
+		panic("Commit occures two times")
+	}
+
+	err := bulk.db.db.Write(bulk.tx, &opt.WriteOptions{Sync: true})
+	if err != nil {
+		panic(fmt.Sprintf("Database Error: %v", err))
+	}
+	bulk.isCommit = true
+}
+
+func (bulk *levelBulk) DiscardLast() {
+	bulk.isDiscard = true
 }
 
 //=========================================================

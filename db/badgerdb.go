@@ -218,6 +218,17 @@ func (db *badgerDB) NewTx() Transaction {
 	return retTransaction
 }
 
+func (db *badgerDB) NewBulk() Bulk {
+	badgerWriteBatch := db.db.NewWriteBatch()
+
+	retBulk := &badgerBulk{
+		db:   db,
+		bulk: badgerWriteBatch,
+	}
+
+	return retBulk
+}
+
 //=========================================================
 // Transaction Implementation
 //=========================================================
@@ -281,6 +292,48 @@ func (transaction *badgerTransaction) Commit() {
 
 func (transaction *badgerTransaction) Discard() {
 	transaction.tx.Discard()
+}
+
+//=========================================================
+// Bulk Implementation
+//=========================================================
+type badgerBulk struct {
+	db   *badgerDB
+	bulk *badger.WriteBatch
+}
+
+func (bulk *badgerBulk) Set(key, value []byte) {
+	// TODO Updating trie nodes may require many updates but ErrTxnTooBig is not handled
+	key = convNilToBytes(key)
+	value = convNilToBytes(value)
+
+	err := bulk.bulk.Set(key, value, 0)
+	if err != nil {
+		panic(fmt.Sprintf("Database Error: %v", err))
+	}
+}
+
+func (bulk *badgerBulk) Delete(key []byte) {
+	// TODO Reverting trie may require many updates but ErrTxnTooBig is not handled
+	key = convNilToBytes(key)
+
+	err := bulk.bulk.Delete(key)
+	if err != nil {
+		panic(fmt.Sprintf("Database Error: %v", err))
+	}
+}
+
+func (bulk *badgerBulk) Flush() {
+	err := bulk.bulk.Flush()
+
+	if err != nil {
+		//TODO if there is conflict during commit, this panic will occurs
+		panic(err)
+	}
+}
+
+func (bulk *badgerBulk) DiscardLast() {
+	bulk.bulk.Cancel()
 }
 
 //=========================================================

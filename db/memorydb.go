@@ -57,7 +57,7 @@ func NewMemoryDB(dir string) (DB, error) {
 //=========================================================
 
 // Enforce database and transaction implements interfaces
-var _ DB = (*levelDB)(nil)
+var _ DB = (*memorydb)(nil)
 
 type memorydb struct {
 	lock sync.Mutex
@@ -123,6 +123,16 @@ func (db *memorydb) Close() {
 func (db *memorydb) NewTx() Transaction {
 
 	return &memoryTransaction{
+		db:        db,
+		opList:    list.New(),
+		isDiscard: false,
+		isCommit:  false,
+	}
+}
+
+func (db *memorydb) NewBulk() Bulk {
+
+	return &memoryBulk{
 		db:        db,
 		opList:    list.New(),
 		isDiscard: false,
@@ -199,6 +209,71 @@ func (transaction *memoryTransaction) Discard() {
 	defer transaction.txLock.Unlock()
 
 	transaction.isDiscard = true
+}
+
+//=========================================================
+// Bulk Implementation
+//=========================================================
+
+type memoryBulk struct {
+	txLock    sync.Mutex
+	db        *memorydb
+	opList    *list.List
+	isDiscard bool
+	isCommit  bool
+}
+
+func (bulk *memoryBulk) Set(key, value []byte) {
+	bulk.txLock.Lock()
+	defer bulk.txLock.Unlock()
+
+	key = convNilToBytes(key)
+	value = convNilToBytes(value)
+
+	bulk.opList.PushBack(&txOp{true, key, value})
+}
+
+func (bulk *memoryBulk) Delete(key []byte) {
+	bulk.txLock.Lock()
+	defer bulk.txLock.Unlock()
+
+	key = convNilToBytes(key)
+
+	bulk.opList.PushBack(&txOp{false, key, nil})
+}
+
+func (bulk *memoryBulk) Flush() {
+	bulk.txLock.Lock()
+	defer bulk.txLock.Unlock()
+
+	if bulk.isDiscard {
+		panic("Commit after dicard tx is not allowed")
+	} else if bulk.isCommit {
+		panic("Commit occures two times")
+	}
+
+	db := bulk.db
+
+	db.lock.Lock()
+	defer db.lock.Unlock()
+
+	for e := bulk.opList.Front(); e != nil; e = e.Next() {
+		op := e.Value.(*txOp)
+		if op.isSet {
+			db.db[string(op.key)] = op.value
+		} else {
+			delete(db.db, string(op.key))
+		}
+	}
+
+	bulk.isCommit = true
+}
+
+func (bulk *memoryBulk) DiscardLast() {
+	bulk.txLock.Lock()
+	defer bulk.txLock.Unlock()
+
+	bulk.isDiscard = true
 }
 
 //=========================================================

@@ -30,6 +30,7 @@ type DB interface {
 	Exist(key []byte) bool
 	Iterator(start, end []byte) Iterator
 	NewTx() Transaction
+	NewBulk() Bulk
 	Close()
 	//Print()
 	//Stats() map[string]string
@@ -42,6 +43,15 @@ type Transaction interface {
 	Delete(key []byte)
 	Commit()
 	Discard()
+}
+
+// Bulk is used to batch multiple transactions
+// This will internally commit transactions when reach maximum tx size
+type Bulk interface {
+	Set(key, value []byte)
+	Delete(key []byte)
+	Flush()
+	DiscardLast()
 }
 
 // Iterator is used to navigate specific key ranges

@@ -5,6 +5,7 @@
 package db
 
 import (
+	"fmt"
 	"io/ioutil"
 	"log"
 	"os"
@@ -160,6 +161,33 @@ func TestTransactionCommitTwice(t *testing.T) {
 
 		// a second commit will cause panic
 		assert.Panics(t, func() { tx.Commit() })
+
+		db.Close()
+		os.RemoveAll(dir)
+	}
+}
+
+func TestBulk(t *testing.T) {
+
+	for key := range dbImpls {
+		dir, db := createTmpDB(key)
+
+		// create a new Bulk instance
+		bulk := db.NewBulk()
+
+		// set the huge number of value in the bulk
+		for i := 0; i < 1000000; i++ {
+			bulk.Set([]byte(fmt.Sprintf("key%d", i)),
+				[]byte(tmpDbTestStrVal1))
+		}
+
+		bulk.Flush()
+
+		// after commit, the value visible from the db
+
+		for i := 0; i < 1000000; i++ {
+			assert.Equal(t, tmpDbTestStrVal1, string(db.Get([]byte(fmt.Sprintf("key%d", i)))), db.Type())
+		}
 
 		db.Close()
 		os.RemoveAll(dir)
