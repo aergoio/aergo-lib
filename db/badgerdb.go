@@ -51,11 +51,11 @@ func (db *badgerDB) runBadgerGC() {
 						logger.Error().Err(err).Msg("Fail to GC at badger")
 					}
 				} else {
-					lastGcT = time.Now()
 					_, afterGcDbVlogSize := db.db.Size()
 
 					logger.Debug().Dur("takenTime", time.Now().Sub(startGcT)).Int64("gcBytes", currentDbVlogSize-afterGcDbVlogSize).Msg("Run GC at badger")
 				}
+				lastGcT = time.Now()
 			}
 
 		case <-db.ctx.Done():
