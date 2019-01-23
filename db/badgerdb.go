@@ -13,6 +13,8 @@ import (
 
 	"github.com/sunpuyo/badger"
 	"github.com/sunpuyo/badger/options"
+
+	"github.com/aergoio/aergo-lib/log"
 )
 
 const (
@@ -211,8 +213,9 @@ func (db *badgerDB) NewTx() Transaction {
 	badgerTx := db.db.NewTransaction(true)
 
 	retTransaction := &badgerTransaction{
-		db: db,
-		tx: badgerTx,
+		db:      db,
+		tx:      badgerTx,
+		createT: time.Now(),
 	}
 
 	return retTransaction
@@ -222,8 +225,9 @@ func (db *badgerDB) NewBulk() Bulk {
 	badgerWriteBatch := db.db.NewWriteBatch()
 
 	retBulk := &badgerBulk{
-		db:   db,
-		bulk: badgerWriteBatch,
+		db:      db,
+		bulk:    badgerWriteBatch,
+		createT: time.Now(),
 	}
 
 	return retBulk
@@ -234,32 +238,11 @@ func (db *badgerDB) NewBulk() Bulk {
 //=========================================================
 
 type badgerTransaction struct {
-	db *badgerDB
-	tx *badger.Txn
+	db      *badgerDB
+	tx      *badger.Txn
+	createT time.Time
 }
 
-/*
-func (transaction *badgerTransaction) Get(key []byte) []byte {
-	key = convNilToBytes(key)
-
-	getVal, err := transaction.tx.Get(key)
-
-	if err != nil {
-		if err == badger.ErrKeyNotFound {
-			return []byte{}
-		}
-		panic(fmt.Sprintf("Database Error: %v", err))
-	}
-
-	val, err := getVal.Value()
-	if err != nil {
-		//TODO handle retry error??
-		panic(fmt.Sprintf("Database Error: %v", err))
-	}
-
-	return val
-}
-*/
 func (transaction *badgerTransaction) Set(key, value []byte) {
 	// TODO Updating trie nodes may require many updates but ErrTxnTooBig is not handled
 	key = convNilToBytes(key)
@@ -282,7 +265,16 @@ func (transaction *badgerTransaction) Delete(key []byte) {
 }
 
 func (transaction *badgerTransaction) Commit() {
+	writeStartT := time.Now()
 	err := transaction.tx.Commit()
+	writeEndT := time.Now()
+
+	if writeEndT.Sub(writeStartT) > time.Millisecond*100 {
+		// write warn log when write tx take too long time (100ms)
+		logger.Warn().Str("callstack1", log.SkipCaller(2)).Str("callstack2", log.SkipCaller(3)).
+			Dur("prepareTime", writeStartT.Sub(transaction.createT)).
+			Dur("takenTime", writeEndT.Sub(writeStartT)).Msg("commit takes long time")
+	}
 
 	if err != nil {
 		//TODO if there is conflict during commit, this panic will occurs
@@ -298,8 +290,9 @@ func (transaction *badgerTransaction) Discard() {
 // Bulk Implementation
 //=========================================================
 type badgerBulk struct {
-	db   *badgerDB
-	bulk *badger.WriteBatch
+	db      *badgerDB
+	bulk    *badger.WriteBatch
+	createT time.Time
 }
 
 func (bulk *badgerBulk) Set(key, value []byte) {
@@ -324,7 +317,16 @@ func (bulk *badgerBulk) Delete(key []byte) {
 }
 
 func (bulk *badgerBulk) Flush() {
+	writeStartT := time.Now()
 	err := bulk.bulk.Flush()
+	writeEndT := time.Now()
+
+	if writeEndT.Sub(writeStartT) > time.Millisecond*100 || writeEndT.Sub(bulk.createT) > time.Millisecond*500 {
+		// write warn log when write bulk tx take too long time (100ms or 500ms total)
+		logger.Warn().Str("callstack1", log.SkipCaller(2)).Str("callstack2", log.SkipCaller(3)).
+			Dur("prepareAndCommitTime", writeStartT.Sub(bulk.createT)).
+			Dur("flushTime", writeEndT.Sub(writeStartT)).Msg("flush takes long time")
+	}
 
 	if err != nil {
 		//TODO if there is conflict during commit, this panic will occurs
