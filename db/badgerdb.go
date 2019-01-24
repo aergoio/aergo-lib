@@ -238,9 +238,13 @@ func (db *badgerDB) NewBulk() Bulk {
 //=========================================================
 
 type badgerTransaction struct {
-	db      *badgerDB
-	tx      *badger.Txn
-	createT time.Time
+	db        *badgerDB
+	tx        *badger.Txn
+	createT   time.Time
+	setCount  uint
+	delCount  uint
+	keySize   uint64
+	valueSize uint64
 }
 
 func (transaction *badgerTransaction) Set(key, value []byte) {
@@ -252,6 +256,10 @@ func (transaction *badgerTransaction) Set(key, value []byte) {
 	if err != nil {
 		panic(fmt.Sprintf("Database Error: %v", err))
 	}
+
+	transaction.setCount++
+	transaction.keySize += uint64(len(key))
+	transaction.valueSize += uint64(len(value))
 }
 
 func (transaction *badgerTransaction) Delete(key []byte) {
@@ -262,6 +270,8 @@ func (transaction *badgerTransaction) Delete(key []byte) {
 	if err != nil {
 		panic(fmt.Sprintf("Database Error: %v", err))
 	}
+
+	transaction.delCount++
 }
 
 func (transaction *badgerTransaction) Commit() {
@@ -273,7 +283,10 @@ func (transaction *badgerTransaction) Commit() {
 		// write warn log when write tx take too long time (100ms)
 		logger.Warn().Str("callstack1", log.SkipCaller(2)).Str("callstack2", log.SkipCaller(3)).
 			Dur("prepareTime", writeStartT.Sub(transaction.createT)).
-			Dur("takenTime", writeEndT.Sub(writeStartT)).Msg("commit takes long time")
+			Dur("takenTime", writeEndT.Sub(writeStartT)).
+			Uint("delCount", transaction.delCount).Uint("setCount", transaction.setCount).
+			Uint64("setKeySize", transaction.keySize).Uint64("setValueSize", transaction.valueSize).
+			Msg("commit takes long time")
 	}
 
 	if err != nil {
@@ -290,9 +303,13 @@ func (transaction *badgerTransaction) Discard() {
 // Bulk Implementation
 //=========================================================
 type badgerBulk struct {
-	db      *badgerDB
-	bulk    *badger.WriteBatch
-	createT time.Time
+	db        *badgerDB
+	bulk      *badger.WriteBatch
+	createT   time.Time
+	setCount  uint
+	delCount  uint
+	keySize   uint64
+	valueSize uint64
 }
 
 func (bulk *badgerBulk) Set(key, value []byte) {
@@ -304,6 +321,10 @@ func (bulk *badgerBulk) Set(key, value []byte) {
 	if err != nil {
 		panic(fmt.Sprintf("Database Error: %v", err))
 	}
+
+	bulk.setCount++
+	bulk.keySize += uint64(len(key))
+	bulk.valueSize += uint64(len(value))
 }
 
 func (bulk *badgerBulk) Delete(key []byte) {
@@ -314,6 +335,8 @@ func (bulk *badgerBulk) Delete(key []byte) {
 	if err != nil {
 		panic(fmt.Sprintf("Database Error: %v", err))
 	}
+
+	bulk.delCount++
 }
 
 func (bulk *badgerBulk) Flush() {
@@ -325,6 +348,8 @@ func (bulk *badgerBulk) Flush() {
 		// write warn log when write bulk tx take too long time (100ms or 500ms total)
 		logger.Warn().Str("callstack1", log.SkipCaller(2)).Str("callstack2", log.SkipCaller(3)).
 			Dur("prepareAndCommitTime", writeStartT.Sub(bulk.createT)).
+			Uint("delCount", bulk.delCount).Uint("setCount", bulk.setCount).
+			Uint64("setKeySize", bulk.keySize).Uint64("setValueSize", bulk.valueSize).
 			Dur("flushTime", writeEndT.Sub(writeStartT)).Msg("flush takes long time")
 	}
 
