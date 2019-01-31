@@ -79,6 +79,10 @@ func NewBadgerDB(dir string) (DB, error) {
 	opts.TableLoadingMode = options.FileIO
 	opts.ValueThreshold = 1024 // store values, whose size is smaller than 1k, to a lsm tree -> to invoke flushing memtable
 
+	// to reduce size of value log file for low throughtput of cloud; 1GB -> 128 MB
+	// Time to read or write 1GB file in cloud (normal disk, not high provisioned) takes almost 20 seconds for GC
+	opts.ValueLogFileSize = 1<<27 - 1
+
 	//opts.MaxTableSize = 1 << 20 // 2 ^ 20 = 1048576, max mempool size invokes updating vlog header for gc
 
 	// open badger db
