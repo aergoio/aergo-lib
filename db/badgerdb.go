@@ -18,9 +18,10 @@ import (
 )
 
 const (
-	badgerDbDiscardRatio = 0.1 // run gc when 10% of samples can be collected
-	badgerDbGcInterval   = 1 * time.Minute
-	badgerDbGcSize       = 1 << 20 // 1 MB
+	badgerDbDiscardRatio   = 0.5 // run gc when 50% of samples can be collected
+	badgerDbGcInterval     = 1 * time.Minute
+	badgerDbGcSize         = 1 << 20 // 1 MB
+	badgerValueLogFileSize = 1<<26 - 1
 )
 
 // This function is always called first
@@ -40,7 +41,7 @@ func (db *badgerDB) runBadgerGC() {
 		select {
 		case <-ticker.C:
 			// check current db size
-			_, currentDbVlogSize := db.db.Size()
+			currentDblsmSize, currentDbVlogSize := db.db.Size()
 
 			// exceed badgerDbGcInterval time or badgerDbGcSize is increase slowly (it means resource is free)
 			if time.Now().Sub(lastGcT) > badgerDbGcInterval || lastDbVlogSize+badgerDbGcSize > currentDbVlogSize {
@@ -48,14 +49,15 @@ func (db *badgerDB) runBadgerGC() {
 				err := db.db.RunValueLogGC(badgerDbDiscardRatio)
 				if err != nil {
 					if err == badger.ErrNoRewrite {
-						logger.Debug().Str("msg", err.Error()).Msg("Nothing to GC at badger")
+						logger.Debug().Str("name", db.name).Int64("lsmSize", currentDblsmSize).Int64("vlogSize", currentDbVlogSize).Str("msg", err.Error()).Msg("Nothing to GC at badger")
 					} else {
-						logger.Error().Err(err).Msg("Fail to GC at badger")
+						logger.Error().Str("name", db.name).Err(err).Msg("Fail to GC at badger")
 					}
 				} else {
 					_, afterGcDbVlogSize := db.db.Size()
 
-					logger.Debug().Dur("takenTime", time.Now().Sub(startGcT)).Int64("gcBytes", currentDbVlogSize-afterGcDbVlogSize).Msg("Run GC at badger")
+					logger.Debug().Str("name", db.name).Int64("lsmSize", currentDblsmSize).Int64("vlogSize", currentDbVlogSize).
+						Int64("vlogSizeAfterGC", afterGcDbVlogSize).Dur("takenTime", time.Now().Sub(startGcT)).Msg("Run GC at badger")
 				}
 				lastGcT = time.Now()
 			}
@@ -79,9 +81,9 @@ func NewBadgerDB(dir string) (DB, error) {
 	opts.TableLoadingMode = options.FileIO
 	opts.ValueThreshold = 1024 // store values, whose size is smaller than 1k, to a lsm tree -> to invoke flushing memtable
 
-	// to reduce size of value log file for low throughtput of cloud; 1GB -> 128 MB
+	// to reduce size of value log file for low throughtput of cloud; 1GB -> 64 MB
 	// Time to read or write 1GB file in cloud (normal disk, not high provisioned) takes almost 20 seconds for GC
-	opts.ValueLogFileSize = 1<<27 - 1
+	opts.ValueLogFileSize = badgerValueLogFileSize
 
 	//opts.MaxTableSize = 1 << 20 // 2 ^ 20 = 1048576, max mempool size invokes updating vlog header for gc
 
@@ -97,6 +99,7 @@ func NewBadgerDB(dir string) (DB, error) {
 		db:         db,
 		ctx:        ctx,
 		cancelFunc: cancelFunc,
+		name:       dir,
 	}
 
 	go database.runBadgerGC()
@@ -115,6 +118,7 @@ type badgerDB struct {
 	db         *badger.DB
 	ctx        context.Context
 	cancelFunc context.CancelFunc
+	name       string
 }
 
 // Type function returns a database type name
@@ -285,7 +289,7 @@ func (transaction *badgerTransaction) Commit() {
 
 	if writeEndT.Sub(writeStartT) > time.Millisecond*100 {
 		// write warn log when write tx take too long time (100ms)
-		logger.Warn().Str("callstack1", log.SkipCaller(2)).Str("callstack2", log.SkipCaller(3)).
+		logger.Warn().Str("name", transaction.db.name).Str("callstack1", log.SkipCaller(2)).Str("callstack2", log.SkipCaller(3)).
 			Dur("prepareTime", writeStartT.Sub(transaction.createT)).
 			Dur("takenTime", writeEndT.Sub(writeStartT)).
 			Uint("delCount", transaction.delCount).Uint("setCount", transaction.setCount).
@@ -350,7 +354,7 @@ func (bulk *badgerBulk) Flush() {
 
 	if writeEndT.Sub(writeStartT) > time.Millisecond*100 || writeEndT.Sub(bulk.createT) > time.Millisecond*500 {
 		// write warn log when write bulk tx take too long time (100ms or 500ms total)
-		logger.Warn().Str("callstack1", log.SkipCaller(2)).Str("callstack2", log.SkipCaller(3)).
+		logger.Warn().Str("name", bulk.db.name).Str("callstack1", log.SkipCaller(2)).Str("callstack2", log.SkipCaller(3)).
 			Dur("prepareAndCommitTime", writeStartT.Sub(bulk.createT)).
 			Uint("delCount", bulk.delCount).Uint("setCount", bulk.setCount).
 			Uint64("setKeySize", bulk.keySize).Uint64("setValueSize", bulk.valueSize).
