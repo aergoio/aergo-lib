@@ -19,7 +19,7 @@ import (
 
 const (
 	badgerDbDiscardRatio   = 0.5 // run gc when 50% of samples can be collected
-	badgerDbGcInterval     = 1 * time.Minute
+	badgerDbGcInterval     = 10 * time.Minute
 	badgerDbGcSize         = 1 << 20 // 1 MB
 	badgerValueLogFileSize = 1<<26 - 1
 )
@@ -33,7 +33,7 @@ func init() {
 }
 
 func (db *badgerDB) runBadgerGC() {
-	ticker := time.NewTicker(10 * time.Second)
+	ticker := time.NewTicker(1 * time.Minute)
 
 	lastGcT := time.Now()
 	_, lastDbVlogSize := db.db.Size()
@@ -46,18 +46,21 @@ func (db *badgerDB) runBadgerGC() {
 			// exceed badgerDbGcInterval time or badgerDbGcSize is increase slowly (it means resource is free)
 			if time.Now().Sub(lastGcT) > badgerDbGcInterval || lastDbVlogSize+badgerDbGcSize > currentDbVlogSize {
 				startGcT := time.Now()
+				logger.Debug().Str("name", db.name).Int64("lsmSize", currentDblsmSize).Int64("vlogSize", currentDbVlogSize).Msg("Start to GC at badger")
 				err := db.db.RunValueLogGC(badgerDbDiscardRatio)
 				if err != nil {
 					if err == badger.ErrNoRewrite {
-						logger.Debug().Str("name", db.name).Int64("lsmSize", currentDblsmSize).Int64("vlogSize", currentDbVlogSize).Str("msg", err.Error()).Msg("Nothing to GC at badger")
+						logger.Debug().Str("name", db.name).Str("msg", err.Error()).Msg("Nothing to GC at badger")
 					} else {
 						logger.Error().Str("name", db.name).Err(err).Msg("Fail to GC at badger")
 					}
+					lastDbVlogSize = currentDbVlogSize
 				} else {
-					_, afterGcDbVlogSize := db.db.Size()
+					afterGcDblsmSize, afterGcDbVlogSize := db.db.Size()
 
-					logger.Debug().Str("name", db.name).Int64("lsmSize", currentDblsmSize).Int64("vlogSize", currentDbVlogSize).
-						Int64("vlogSizeAfterGC", afterGcDbVlogSize).Dur("takenTime", time.Now().Sub(startGcT)).Msg("Run GC at badger")
+					logger.Debug().Str("name", db.name).Int64("lsmSize", afterGcDblsmSize).Int64("vlogSize", afterGcDbVlogSize).
+						Dur("takenTime", time.Now().Sub(startGcT)).Msg("Finish to GC at badger")
+					lastDbVlogSize = afterGcDbVlogSize
 				}
 				lastGcT = time.Now()
 			}
