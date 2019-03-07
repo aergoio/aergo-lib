@@ -54,7 +54,7 @@ import (
 	"github.com/spf13/viper"
 )
 
-var baseLogger = zerolog.New(os.Stdout)
+var baseLogger = zerolog.New(os.Stderr)
 var baseLevel = zerolog.InfoLevel
 var logInitLock sync.Mutex
 var isLogInit = false
@@ -129,16 +129,16 @@ func initLog() {
 	if outputWriter != "" {
 		switch strings.ToLower(outputWriter) {
 		case "json":
-			baseLogger = baseLogger.Output(os.Stdout)
+			baseLogger = baseLogger.Output(os.Stderr)
 		case "console":
 			baseLogger = baseLogger.Output(
-				zerolog.ConsoleWriter{Out: colorable.NewColorableStdout(), NoColor: false, TimeFormat: zerolog.TimeFieldFormat})
+				zerolog.ConsoleWriter{Out: colorable.NewColorableStderr(), NoColor: false, TimeFormat: zerolog.TimeFieldFormat})
 		case "console_no_color":
 			baseLogger = baseLogger.Output(
-				zerolog.ConsoleWriter{Out: os.Stdout, NoColor: true, TimeFormat: zerolog.TimeFieldFormat})
+				zerolog.ConsoleWriter{Out: os.Stderr, NoColor: true, TimeFormat: zerolog.TimeFieldFormat})
 		default:
 			baseLogger.Warn().Str("formatter", outputWriter).Msg("Invalid Message Formatter. Only allowed; console/console_no_color/json")
-			baseLogger = baseLogger.Output(os.Stdout)
+			baseLogger = baseLogger.Output(os.Stderr)
 		}
 	}
 

@@ -19,7 +19,7 @@ import (
 
 func resetLogger() {
 	// set clear logger as default
-	baseLogger = zerolog.New(os.Stdout)
+	baseLogger = zerolog.New(os.Stderr)
 	// set flag off
 	isLogInit = false
 }
