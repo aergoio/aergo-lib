@@ -45,11 +45,12 @@ Because this pkg is initialized at very early stage, faster than init() func, th
 package log
 
 import (
+	"errors"
+	"io"
 	"os"
 	"strings"
 	"sync"
 
-	colorable "github.com/mattn/go-colorable"
 	"github.com/rs/zerolog"
 	"github.com/spf13/viper"
 )
@@ -124,21 +125,33 @@ func initLog() {
 		zerolog.TimeFieldFormat = viperConf.GetString("timefieldformat")
 	}
 
+	out := io.Writer(os.Stderr)
+	outputName := viperConf.GetString("out")
+	if outputName != "" {
+		o, err := getOutput(outputName)
+		if err == nil {
+			out = o
+			baseLogger = baseLogger.Output(out)
+		} else {
+			baseLogger.Warn().Err(err).Str("outputName", outputName).Msg("failed to open output writer. set to base out instead")
+		}
+	}
+
 	// set output writer
 	outputWriter := viperConf.GetString("formatter")
 	if outputWriter != "" {
 		switch strings.ToLower(outputWriter) {
 		case "json":
-			baseLogger = baseLogger.Output(os.Stderr)
+			baseLogger = baseLogger.Output(out)
 		case "console":
 			baseLogger = baseLogger.Output(
-				zerolog.ConsoleWriter{Out: colorable.NewColorableStderr(), NoColor: false, TimeFormat: zerolog.TimeFieldFormat})
+				zerolog.ConsoleWriter{Out: out, NoColor: false, TimeFormat: zerolog.TimeFieldFormat})
 		case "console_no_color":
 			baseLogger = baseLogger.Output(
-				zerolog.ConsoleWriter{Out: os.Stderr, NoColor: true, TimeFormat: zerolog.TimeFieldFormat})
+				zerolog.ConsoleWriter{Out: out, NoColor: true, TimeFormat: zerolog.TimeFieldFormat})
 		default:
 			baseLogger.Warn().Str("formatter", outputWriter).Msg("Invalid Message Formatter. Only allowed; console/console_no_color/json")
-			baseLogger = baseLogger.Output(os.Stderr)
+			baseLogger = baseLogger.Output(out)
 		}
 	}
 
@@ -187,21 +200,60 @@ func NewLogger(moduleName string) *Logger {
 	zLevel = baseLevel
 	subViperConf := viperConf.Sub(moduleName)
 	if subViperConf != nil {
+		outputName := subViperConf.GetString("out")
+		if outputName != "" {
+			if out, err := getOutput(outputName); err == nil {
+				zLogger = zLogger.Output(out)
+			} else {
+				baseLogger.Warn().Err(err).Str("outputName", outputName).Str("module",moduleName).Msg("failed to open output writer. set to base out instead")
+			}
+		}
+
 		level := subViperConf.GetString("level")
 		var err error
 
-		if zLevel, err = zerolog.ParseLevel(level); err != nil {
-			zLevel = zerolog.InfoLevel
-		}
+		if level != "" {
+			if zLevel, err = zerolog.ParseLevel(level); err != nil {
+				zLevel = zerolog.InfoLevel
+			}
 
-		// set sub logger's level
-		zLogger = zLogger.Level(zLevel)
+			// set sub logger's level
+			zLogger = zLogger.Level(zLevel)
+		}
 	}
 
 	return &Logger{
 		Logger: &zLogger,
 		name:   moduleName,
 		level:  zLevel,
+	}
+}
+
+var emptyNameErr = errors.New("not really error. just placeholder")
+
+// getOutput return prefer io.Writer matching to outName.
+// outName is preserved keywords stdout and stderr, or file path
+// it return error if name is empty or can't open file.
+//
+// Note: There can be argument about thread safe, because Writer of os.File is not
+// guaranteed in thread safe golang runtime, also in stdout and stderr.
+// But it looks practically less dangerous in POSIX compatible system.
+//    https://stackoverflow.com/questions/29981050/concurrent-writing-to-a-file
+func getOutput(outName string) (io.Writer, error) {
+	switch outName {
+	case "":
+		return nil, emptyNameErr
+	case "stdout":
+		return os.Stdout, nil
+	case "stderr":
+		return os.Stderr, nil
+	default:
+		out, err := os.OpenFile(outName, os.O_WRONLY|os.O_CREATE|os.O_APPEND|os.O_SYNC, 0644)
+		if err != nil {
+			return nil, err
+		} else {
+			return out, nil
+		}
 	}
 }
 

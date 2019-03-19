@@ -1,6 +1,7 @@
 package log
 
 import (
+	"bytes"
 	"io/ioutil"
 	"os"
 	"testing"
@@ -126,4 +127,103 @@ func TestIsDebugEnabled(t *testing.T) {
 	}
 
 	assert.True(t, logger.IsDebugEnabled())
+}
+
+func TestGetOutput(t *testing.T) {
+	defer func() {
+		os.Remove("testfile.log")
+	}()
+
+	tests := []struct {
+		name string
+
+		arg     string
+		wantOut interface{}
+		wantErr bool
+	}{
+		{"TEmpty", "", nil, true},
+		{"TStdout", "stdout", os.Stdout, false},
+		{"TStderr", "stderr", os.Stderr, false},
+		{"TCustomFile", "testfile.log", nil, false},
+		{"TFailPermission", "/etc/hosts", nil, true},
+		{"TFailCantCreate", "no/where/dir/nofile.log", nil, true},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			got, err := getOutput(test.arg)
+			if test.wantOut != nil {
+				if got != test.wantOut {
+					t.Errorf("getOutput() = %v, want %v", got, test.wantOut)
+				}
+			}
+			if (err != nil) != test.wantErr {
+				t.Errorf("getOutput() err = %v, wantErr %v", err, test.wantErr)
+			}
+		})
+	}
+}
+
+func TestFileOutByModule(t *testing.T) {
+	var baseLogName = "test_basefile.log"
+	var m1LogName = "test_subfile1.log"
+	var m2LogName = "test_subfile2.log"
+
+	defer func() {
+		// clean up after test
+		os.Remove(baseLogName)
+		os.Remove(m1LogName)
+		os.Remove(m2LogName)
+	}()
+
+	// remove if exist
+	os.Remove(baseLogName)
+	os.Remove(m1LogName)
+	os.Remove(m2LogName)
+
+	configStr := `
+	out = "test_basefile.log"
+	level = "info"
+
+	[m1]
+	out = "test_subfile1.log"
+
+	[m2]
+	out = "test_subfile2.log"
+	`
+	if _, err := createCleanLogger(configStr, "m1"); err != nil {
+		assert.Fail(t, err.Error())
+	}
+
+	sublog1 := NewLogger("m1")
+	sublog1.Info().Msg("sub1 write")
+
+	sublog1_1 := NewLogger("m1")
+	sublog1_1.Info().Msg("sub1_1 write")
+
+	sublog2 := NewLogger("m2")
+	sublog2.Info().Msg("sub2 write")
+
+	// not specified module inherit base logger.
+	otherlog := NewLogger("ohter_m")
+	otherlog.Info().Msg("other write")
+
+	baseContent, err := ioutil.ReadFile(baseLogName)
+	if err != nil {
+		assert.Fail(t, err.Error())
+	}
+	assert.True(t, bytes.Contains(baseContent, []byte("other write")))
+
+	m1Content, err := ioutil.ReadFile(m1LogName)
+	if err != nil {
+		assert.Fail(t, err.Error())
+	}
+	assert.True(t, bytes.Contains(m1Content, []byte("sub1 write")))
+	assert.True(t, bytes.Contains(m1Content, []byte("sub1_1 write")))
+
+	m2Content, err := ioutil.ReadFile(m2LogName)
+	if err != nil {
+		assert.Fail(t, err.Error())
+	}
+	assert.True(t, bytes.Contains(m2Content, []byte("sub2 write")))
+
 }
