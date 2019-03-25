@@ -46,11 +46,11 @@ package log
 
 import (
 	"errors"
-	"io"
 	"os"
 	"strings"
 	"sync"
 
+	colorable "github.com/mattn/go-colorable"
 	"github.com/rs/zerolog"
 	"github.com/spf13/viper"
 )
@@ -125,7 +125,7 @@ func initLog() {
 		zerolog.TimeFieldFormat = viperConf.GetString("timefieldformat")
 	}
 
-	out := io.Writer(os.Stderr)
+	out := os.Stderr
 	outputName := viperConf.GetString("out")
 	if outputName != "" {
 		o, err := getOutput(outputName)
@@ -145,7 +145,7 @@ func initLog() {
 			baseLogger = baseLogger.Output(out)
 		case "console":
 			baseLogger = baseLogger.Output(
-				zerolog.ConsoleWriter{Out: out, NoColor: false, TimeFormat: zerolog.TimeFieldFormat})
+				zerolog.ConsoleWriter{Out: colorable.NewColorable(out), NoColor: false, TimeFormat: zerolog.TimeFieldFormat})
 		case "console_no_color":
 			baseLogger = baseLogger.Output(
 				zerolog.ConsoleWriter{Out: out, NoColor: true, TimeFormat: zerolog.TimeFieldFormat})
@@ -205,7 +205,7 @@ func NewLogger(moduleName string) *Logger {
 			if out, err := getOutput(outputName); err == nil {
 				zLogger = zLogger.Output(out)
 			} else {
-				baseLogger.Warn().Err(err).Str("outputName", outputName).Str("module",moduleName).Msg("failed to open output writer. set to base out instead")
+				baseLogger.Warn().Err(err).Str("outputName", outputName).Str("module", moduleName).Msg("failed to open output writer. set to base out instead")
 			}
 		}
 
@@ -229,7 +229,7 @@ func NewLogger(moduleName string) *Logger {
 	}
 }
 
-var emptyNameErr = errors.New("not really error. just placeholder")
+var errEmptyName = errors.New("not really error. just placeholder")
 
 // getOutput return prefer io.Writer matching to outName.
 // outName is preserved keywords stdout and stderr, or file path
@@ -239,10 +239,10 @@ var emptyNameErr = errors.New("not really error. just placeholder")
 // guaranteed in thread safe golang runtime, also in stdout and stderr.
 // But it looks practically less dangerous in POSIX compatible system.
 //    https://stackoverflow.com/questions/29981050/concurrent-writing-to-a-file
-func getOutput(outName string) (io.Writer, error) {
+func getOutput(outName string) (*os.File, error) {
 	switch outName {
 	case "":
-		return nil, emptyNameErr
+		return nil, errEmptyName
 	case "stdout":
 		return os.Stdout, nil
 	case "stderr":
