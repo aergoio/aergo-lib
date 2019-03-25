@@ -2,21 +2,15 @@ package log
 
 import (
 	"bytes"
+	"fmt"
 	"io/ioutil"
 	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/assert"
 )
-
-// newlogger
-// default
-// is debug enabled
-
-// 환경변수로 패스 잡고
-// 파일 생성해서 설정을 읽자
-// 다양한 설정: 서브
 
 func resetLogger() {
 	// set clear logger as default
@@ -130,9 +124,15 @@ func TestIsDebugEnabled(t *testing.T) {
 }
 
 func TestGetOutput(t *testing.T) {
-	defer func() {
-		os.Remove("testfile.log")
-	}()
+	tmplogfile, err := ioutil.TempFile("", "testfilelog")
+	if err != nil {
+		assert.Fail(t, err.Error())
+	}
+	tmplogfileName, err := filepath.Abs(tmplogfile.Name())
+	if err != nil {
+		assert.Fail(t, err.Error())
+	}
+	tmplogfileName = filepath.ToSlash(tmplogfileName)
 
 	tests := []struct {
 		name string
@@ -144,7 +144,7 @@ func TestGetOutput(t *testing.T) {
 		{"TEmpty", "", nil, true},
 		{"TStdout", "stdout", os.Stdout, false},
 		{"TStderr", "stderr", os.Stderr, false},
-		{"TCustomFile", "testfile.log", nil, false},
+		{"TCustomFile", tmplogfileName, nil, false},
 		{"TFailPermission", "/etc/hosts", nil, true},
 		{"TFailCantCreate", "no/where/dir/nofile.log", nil, true},
 	}
@@ -164,32 +164,27 @@ func TestGetOutput(t *testing.T) {
 }
 
 func TestFileOutByModule(t *testing.T) {
-	var baseLogName = "test_basefile.log"
-	var m1LogName = "test_subfile1.log"
-	var m2LogName = "test_subfile2.log"
+	baseLog, _ := ioutil.TempFile("", "test_basefile")
+	baseLogName, _ := filepath.Abs(baseLog.Name())
+	baseLogName = filepath.ToSlash(baseLogName)
 
-	defer func() {
-		// clean up after test
-		os.Remove(baseLogName)
-		os.Remove(m1LogName)
-		os.Remove(m2LogName)
-	}()
+	m1Log, err := ioutil.TempFile("", "test_subfile1")
+	m1LogName, _ := filepath.Abs(m1Log.Name())
+	m1LogName = filepath.ToSlash(m1LogName)
 
-	// remove if exist
-	os.Remove(baseLogName)
-	os.Remove(m1LogName)
-	os.Remove(m2LogName)
+	m2Log, err := ioutil.TempFile("", "test_subfile2")
+	m2LogName, _ := filepath.Abs(m2Log.Name())
+	m2LogName = filepath.ToSlash(m2LogName)
 
-	configStr := `
-	out = "test_basefile.log"
-	level = "info"
+	configStr := fmt.Sprintf(`
+out = "%s"
+level = "info"
 
-	[m1]
-	out = "test_subfile1.log"
+[m1]
+out = "%s"
 
-	[m2]
-	out = "test_subfile2.log"
-	`
+[m2]
+out = "%s"`, baseLogName, m1LogName, m2LogName)
 	if _, err := createCleanLogger(configStr, "m1"); err != nil {
 		assert.Fail(t, err.Error())
 	}
