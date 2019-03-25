@@ -8,6 +8,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -203,7 +204,12 @@ func TestExpand(t *testing.T) {
 	myText := "$HOME/mypath"
 	dummyCxt := NewDummyContext("/myhome", "")
 
-	assert.Equal(t, dummyCxt.ExpandPathEnv(myText), "/myhome/mypath")
+	absPath, err := filepath.Abs("/myhome/mypath")
+
+	if err != nil {
+		assert.Fail(t, err.Error())
+	}
+	assert.Equal(t, dummyCxt.ExpandPathEnv(myText), filepath.ToSlash(absPath))
 }
 
 type ConfigTestSuite struct {
