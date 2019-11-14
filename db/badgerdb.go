@@ -11,8 +11,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/sunpuyo/badger"
-	"github.com/sunpuyo/badger/options"
+	"github.com/dgraph-io/badger"
+	"github.com/dgraph-io/badger/options"
 
 	"github.com/aergoio/aergo-lib/log"
 )
@@ -75,9 +75,8 @@ func (db *badgerDB) runBadgerGC() {
 // An input parameter, dir, is a root directory to store db files.
 func NewBadgerDB(dir string) (DB, error) {
 	// set option file
-	opts := badger.DefaultOptions
-	opts.Dir = dir
-	opts.ValueDir = dir
+	opts := badger.DefaultOptions(dir)
+
 	// TODO : options tuning.
 	// Quick fix to prevent RAM usage from going to the roof when adding 10Million new keys during tests
 	opts.ValueLogLoadingMode = options.FileIO
@@ -328,7 +327,7 @@ func (bulk *badgerBulk) Set(key, value []byte) {
 	key = convNilToBytes(key)
 	value = convNilToBytes(value)
 
-	err := bulk.bulk.Set(key, value, 0)
+	err := bulk.bulk.Set(key, value)
 	if err != nil {
 		panic(fmt.Sprintf("Database Error: %v", err))
 	}
