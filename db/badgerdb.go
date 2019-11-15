@@ -89,6 +89,9 @@ func NewBadgerDB(dir string) (DB, error) {
 
 	//opts.MaxTableSize = 1 << 20 // 2 ^ 20 = 1048576, max mempool size invokes updating vlog header for gc
 
+	// set aergo-lib logger instead of default badger stderr logger
+	opts.Logger = logger
+
 	// open badger db
 	db, err := badger.Open(opts)
 	if err != nil {
