@@ -19,12 +19,12 @@ import (
 // This function is always called first
 func init() {
 	dbConstructor := func(dir string) (DB, error) {
-		return NewLevelDB(dir)
+		return newLevelDB(dir)
 	}
 	registorDBConstructor(LevelImpl, dbConstructor)
 }
 
-func NewLevelDB(dir string) (DB, error) {
+func newLevelDB(dir string) (DB, error) {
 	dbPath := filepath.Join(dir, "data.db")
 
 	db, err := leveldb.OpenFile(dbPath, nil)

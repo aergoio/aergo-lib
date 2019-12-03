@@ -27,7 +27,7 @@ const (
 // This function is always called first
 func init() {
 	dbConstructor := func(dir string) (DB, error) {
-		return NewBadgerDB(dir)
+		return newBadgerDB(dir)
 	}
 	registorDBConstructor(BadgerImpl, dbConstructor)
 }
@@ -71,9 +71,9 @@ func (db *badgerDB) runBadgerGC() {
 	}
 }
 
-// NewBadgerDB create a DB instance that uses badger db and implements DB interface.
+// newBadgerDB create a DB instance that uses badger db and implements DB interface.
 // An input parameter, dir, is a root directory to store db files.
-func NewBadgerDB(dir string) (DB, error) {
+func newBadgerDB(dir string) (DB, error) {
 	// set option file
 	opts := badger.DefaultOptions(dir)
 
