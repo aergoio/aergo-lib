@@ -11,9 +11,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/dgraph-io/badger"
-	"github.com/dgraph-io/badger/options"
-
+	"github.com/aergoio/badger"
+	"github.com/aergoio/badger/options"
 	"github.com/aergoio/aergo-lib/log"
 )
 

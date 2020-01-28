@@ -3,7 +3,7 @@ module github.com/aergoio/aergo-lib
 go 1.12
 
 require (
-	github.com/dgraph-io/badger v1.6.0
+	github.com/aergoio/badger v1.6.0-gcfix
 	github.com/fsnotify/fsnotify v1.4.8-0.20180830220226-ccc981bf8038 // indirect
 	github.com/golang/snappy v0.0.1 // indirect
 	github.com/guptarohit/asciigraph v0.4.1
