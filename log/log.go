@@ -278,7 +278,7 @@ func Default() *Logger {
 // IsDebugEnabled is used to check whether this logger's level is debug or not.
 // This helps to prevent heavy computation to generate debug log statements.
 func (logger *Logger) IsDebugEnabled() bool {
-	return logger.level == zerolog.DebugLevel
+	return logger.level <= zerolog.DebugLevel
 }
 
 // Level returns current logger level

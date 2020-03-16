@@ -123,6 +123,20 @@ func TestIsDebugEnabled(t *testing.T) {
 	assert.True(t, logger.IsDebugEnabled())
 }
 
+func TestIsDebugEnabledInTrace(t *testing.T) {
+	var logger *Logger
+	var err error
+
+	configStr := `
+	level = "trace"
+	`
+	if logger, err = createCleanLogger(configStr, "debug_logger"); err != nil {
+		assert.Fail(t, err.Error())
+	}
+
+	assert.True(t, logger.IsDebugEnabled())
+}
+
 func TestGetOutput(t *testing.T) {
 	tmplogfile, err := ioutil.TempFile("", "testfilelog")
 	if err != nil {
