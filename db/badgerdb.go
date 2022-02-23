@@ -11,9 +11,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/aergoio/badger"
-	"github.com/aergoio/badger/options"
 	"github.com/aergoio/aergo-lib/log"
+	"github.com/dgraph-io/badger/v2"
+	"github.com/dgraph-io/badger/v2/options"
 )
 
 const (
