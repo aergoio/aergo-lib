@@ -20,7 +20,7 @@ const (
 	badgerDbDiscardRatio   = 0.5 // run gc when 50% of samples can be collected
 	badgerDbGcInterval     = 10 * time.Minute
 	badgerDbGcSize         = 1 << 20 // 1 MB
-	badgerValueLogFileSize = 1<<26 - 1
+	badgerValueLogFileSize = 1 << 26
 )
 
 // This function is always called first
