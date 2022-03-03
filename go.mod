@@ -4,6 +4,7 @@ go 1.12
 
 require (
 	github.com/dgraph-io/badger/v2 v2.2007.4
+	github.com/dgraph-io/badger/v3 v3.2103.2
 	github.com/dgryski/go-farm v0.0.0-20200201041132-a6ae2369ad13 // indirect
 	github.com/fsnotify/fsnotify v1.4.8-0.20180830220226-ccc981bf8038 // indirect
 	github.com/golang/protobuf v1.3.3 // indirect
@@ -21,7 +22,4 @@ require (
 	github.com/spf13/viper v1.5.0
 	github.com/stretchr/testify v1.4.0
 	github.com/syndtr/goleveldb v1.0.0
-	golang.org/x/net v0.0.0-20200202094626-16171245cfb2 // indirect
-	golang.org/x/sys v0.0.0-20200202164722-d101bd2416d5 // indirect
-	golang.org/x/text v0.3.1-0.20181030141323-6f44c5a2ea40 // indirect
 )

@@ -2,7 +2,7 @@ package db
 
 import (
 	"github.com/aergoio/aergo-lib/log"
-	"github.com/dgraph-io/badger/v2"
+	"github.com/dgraph-io/badger/v3"
 )
 
 type extendedLog struct {
