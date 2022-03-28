@@ -11,16 +11,15 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/aergoio/badger"
-	"github.com/aergoio/badger/options"
 	"github.com/aergoio/aergo-lib/log"
+	"github.com/dgraph-io/badger/v3"
 )
 
 const (
 	badgerDbDiscardRatio   = 0.5 // run gc when 50% of samples can be collected
 	badgerDbGcInterval     = 10 * time.Minute
 	badgerDbGcSize         = 1 << 20 // 1 MB
-	badgerValueLogFileSize = 1<<26 - 1
+	badgerValueLogFileSize = 1 << 26
 )
 
 // This function is always called first
@@ -78,8 +77,9 @@ func newBadgerDB(dir string) (DB, error) {
 
 	// TODO : options tuning.
 	// Quick fix to prevent RAM usage from going to the roof when adding 10Million new keys during tests
-	opts.ValueLogLoadingMode = options.FileIO
-	opts.TableLoadingMode = options.FileIO
+	// *** BadgerDB v3 no longer supports FileIO option. To fix build, the related lines are commented out. ***
+	// opts.ValueLogLoadingMode = options.FileIO
+	// opts.TableLoadingMode = options.FileIO
 	opts.ValueThreshold = 1024 // store values, whose size is smaller than 1k, to a lsm tree -> to invoke flushing memtable
 
 	// to reduce size of value log file for low throughtput of cloud; 1GB -> 64 MB
