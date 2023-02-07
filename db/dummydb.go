@@ -113,12 +113,15 @@ func (db *dummydb) Get(key []byte) []byte {
 
 	key = convNilToBytes(key)
 
-	// check if the key already exists. if it does, return the value
+	// check if the key exists. if it does, return the value
 	for _, kv := range db.db {
 		if kv.key == string(key) {
 			return kv.value
 		}
 	}
+
+	// if the key does not exist, return nil
+	return nil
 }
 
 func (db *dummydb) Exist(key []byte) bool {
@@ -127,7 +130,7 @@ func (db *dummydb) Exist(key []byte) bool {
 
 	key = convNilToBytes(key)
 
-	// check if the key already exists. if it does, return true
+	// check if the key exists. if it does, return true
 	for _, kv := range db.db {
 		if kv.key == string(key) {
 			return true
