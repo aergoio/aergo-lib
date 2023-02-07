@@ -18,13 +18,13 @@ import (
 // This function is always called first
 func init() {
 	dbConstructor := func(dir string) (DB, error) {
-		return newMemoryDB(dir)
+		return newDummyDB(dir)
 	}
-	registorDBConstructor(MemoryImpl, dbConstructor)
+	registorDBConstructor(DummyImpl, dbConstructor)
 }
 
-func newMemoryDB(dir string) (DB, error) {
-	var db map[string][]byte
+func newDummyDB(dir string) (DB, error) {
+	var db []kv
 
 	filePath := path.Join(dir, "database")
 
@@ -41,10 +41,10 @@ func newMemoryDB(dir string) (DB, error) {
 	file.Close()
 
 	if db == nil {
-		db = make(map[string][]byte)
+		db = make([]kv, 0)
 	}
 
-	database := &memorydb{
+	database := &dummydb{
 		db:  db,
 		dir: filePath,
 	}
@@ -57,58 +57,88 @@ func newMemoryDB(dir string) (DB, error) {
 //=========================================================
 
 // Enforce database and transaction implements interfaces
-var _ DB = (*memorydb)(nil)
+var _ DB = (*dummydb)(nil)
 
-type memorydb struct {
+type dummydb struct {
 	lock sync.Mutex
-	db   map[string][]byte
+	db   []kv
 	dir  string
 }
 
-func (db *memorydb) Type() string {
-	return "memorydb"
+func (db *dummydb) Type() string {
+	return "dummydb"
 }
 
-func (db *memorydb) Set(key, value []byte) {
+func (db *dummydb) Set(key, value []byte) {
 	db.lock.Lock()
 	defer db.lock.Unlock()
 
 	key = convNilToBytes(key)
 	value = convNilToBytes(value)
 
-	db.db[string(key)] = value
+	// check if the key already exists. if it does, remove it from the slice
+	for i, kv := range db.db {
+		if kv.key == string(key) {
+			db.db = append(db.db[:i], db.db[i+1:]...)
+			break
+		}
+	}
+	// now add the new key-value pair to the slice
+	db.db = append(db.db, kv{key: string(key), value: value})
+	// if the slice is longer than 3, remove the first element
+	if len(db.db) > 3 {
+		db.db = db.db[1:]
+	}
+
 }
 
-func (db *memorydb) Delete(key []byte) {
+func (db *dummydb) Delete(key []byte) {
 	db.lock.Lock()
 	defer db.lock.Unlock()
 
 	key = convNilToBytes(key)
 
-	delete(db.db, string(key))
+	// check if the key already exists. if it does, remove it from the slice
+	for i, kv := range db.db {
+		if kv.key == string(key) {
+			db.db = append(db.db[:i], db.db[i+1:]...)
+			break
+		}
+	}
 }
 
-func (db *memorydb) Get(key []byte) []byte {
+func (db *dummydb) Get(key []byte) []byte {
 	db.lock.Lock()
 	defer db.lock.Unlock()
 
 	key = convNilToBytes(key)
 
-	return db.db[string(key)]
+	// check if the key already exists. if it does, return the value
+	for _, kv := range db.db {
+		if kv.key == string(key) {
+			return kv.value
+		}
+	}
 }
 
-func (db *memorydb) Exist(key []byte) bool {
+func (db *dummydb) Exist(key []byte) bool {
 	db.lock.Lock()
 	defer db.lock.Unlock()
 
 	key = convNilToBytes(key)
 
-	_, ok := db.db[string(key)]
+	// check if the key already exists. if it does, return true
+	for _, kv := range db.db {
+		if kv.key == string(key) {
+			return true
+		}
+	}
 
-	return ok
+	// if the key does not exist, return false
+	return false
 }
 
-func (db *memorydb) Close() {
+func (db *dummydb) Close() {
 	db.lock.Lock()
 	defer db.lock.Unlock()
 
@@ -120,9 +150,9 @@ func (db *memorydb) Close() {
 	file.Close()
 }
 
-func (db *memorydb) NewTx() Transaction {
+func (db *dummydb) NewTx() Transaction {
 
-	return &memoryTransaction{
+	return &dummyTransaction{
 		db:        db,
 		opList:    list.New(),
 		isDiscard: false,
@@ -130,9 +160,9 @@ func (db *memorydb) NewTx() Transaction {
 	}
 }
 
-func (db *memorydb) NewBulk() Bulk {
+func (db *dummydb) NewBulk() Bulk {
 
-	return &memoryBulk{
+	return &dummyBulk{
 		db:        db,
 		opList:    list.New(),
 		isDiscard: false,
@@ -144,9 +174,9 @@ func (db *memorydb) NewBulk() Bulk {
 // Transaction Implementation
 //=========================================================
 
-type memoryTransaction struct {
+type dummyTransaction struct {
 	txLock    sync.Mutex
-	db        *memorydb
+	db        *dummydb
 	opList    *list.List
 	isDiscard bool
 	isCommit  bool
@@ -158,7 +188,7 @@ type txOp struct {
 	value []byte
 }
 
-func (transaction *memoryTransaction) Set(key, value []byte) {
+func (transaction *dummyTransaction) Set(key, value []byte) {
 	transaction.txLock.Lock()
 	defer transaction.txLock.Unlock()
 
@@ -168,7 +198,7 @@ func (transaction *memoryTransaction) Set(key, value []byte) {
 	transaction.opList.PushBack(&txOp{true, key, value})
 }
 
-func (transaction *memoryTransaction) Delete(key []byte) {
+func (transaction *dummyTransaction) Delete(key []byte) {
 	transaction.txLock.Lock()
 	defer transaction.txLock.Unlock()
 
@@ -177,7 +207,7 @@ func (transaction *memoryTransaction) Delete(key []byte) {
 	transaction.opList.PushBack(&txOp{false, key, nil})
 }
 
-func (transaction *memoryTransaction) Commit() {
+func (transaction *dummyTransaction) Commit() {
 	transaction.txLock.Lock()
 	defer transaction.txLock.Unlock()
 
@@ -195,16 +225,16 @@ func (transaction *memoryTransaction) Commit() {
 	for e := transaction.opList.Front(); e != nil; e = e.Next() {
 		op := e.Value.(*txOp)
 		if op.isSet {
-			db.db[string(op.key)] = op.value
+			db.Set(op.key, op.value)
 		} else {
-			delete(db.db, string(op.key))
+			db.Delete(op.key)
 		}
 	}
 
 	transaction.isCommit = true
 }
 
-func (transaction *memoryTransaction) Discard() {
+func (transaction *dummyTransaction) Discard() {
 	transaction.txLock.Lock()
 	defer transaction.txLock.Unlock()
 
@@ -215,15 +245,15 @@ func (transaction *memoryTransaction) Discard() {
 // Bulk Implementation
 //=========================================================
 
-type memoryBulk struct {
+type dummyBulk struct {
 	txLock    sync.Mutex
-	db        *memorydb
+	db        *dummydb
 	opList    *list.List
 	isDiscard bool
 	isCommit  bool
 }
 
-func (bulk *memoryBulk) Set(key, value []byte) {
+func (bulk *dummyBulk) Set(key, value []byte) {
 	bulk.txLock.Lock()
 	defer bulk.txLock.Unlock()
 
@@ -233,7 +263,7 @@ func (bulk *memoryBulk) Set(key, value []byte) {
 	bulk.opList.PushBack(&txOp{true, key, value})
 }
 
-func (bulk *memoryBulk) Delete(key []byte) {
+func (bulk *dummyBulk) Delete(key []byte) {
 	bulk.txLock.Lock()
 	defer bulk.txLock.Unlock()
 
@@ -242,7 +272,7 @@ func (bulk *memoryBulk) Delete(key []byte) {
 	bulk.opList.PushBack(&txOp{false, key, nil})
 }
 
-func (bulk *memoryBulk) Flush() {
+func (bulk *dummyBulk) Flush() {
 	bulk.txLock.Lock()
 	defer bulk.txLock.Unlock()
 
@@ -260,16 +290,16 @@ func (bulk *memoryBulk) Flush() {
 	for e := bulk.opList.Front(); e != nil; e = e.Next() {
 		op := e.Value.(*txOp)
 		if op.isSet {
-			db.db[string(op.key)] = op.value
+			db.Set(op.key, op.value)
 		} else {
-			delete(db.db, string(op.key))
+			db.Delete(op.key)
 		}
 	}
 
 	bulk.isCommit = true
 }
 
-func (bulk *memoryBulk) DiscardLast() {
+func (bulk *dummyBulk) DiscardLast() {
 	bulk.txLock.Lock()
 	defer bulk.txLock.Unlock()
 
@@ -280,14 +310,14 @@ func (bulk *memoryBulk) DiscardLast() {
 // Iterator Implementation
 //=========================================================
 
-type memoryIterator struct {
+type dummyIterator struct {
 	start     []byte
 	end       []byte
 	reverse   bool
 	keys      []string
 	isInvalid bool
 	cursor    int
-	db        *memorydb
+	db        *dummydb
 }
 
 func isKeyInRange(key []byte, start []byte, end []byte, reverse bool) bool {
@@ -311,7 +341,7 @@ func isKeyInRange(key []byte, start []byte, end []byte, reverse bool) bool {
 
 }
 
-func (db *memorydb) Iterator(start, end []byte) Iterator {
+func (db *dummydb) Iterator(start, end []byte) Iterator {
 	db.lock.Lock()
 	defer db.lock.Unlock()
 
@@ -337,7 +367,7 @@ func (db *memorydb) Iterator(start, end []byte) Iterator {
 		sort.Strings(keys)
 	}
 
-	return &memoryIterator{
+	return &dummyIterator{
 		start:     start,
 		end:       end,
 		reverse:   reverse,
@@ -348,7 +378,7 @@ func (db *memorydb) Iterator(start, end []byte) Iterator {
 	}
 }
 
-func (iter *memoryIterator) Next() {
+func (iter *dummyIterator) Next() {
 	if !iter.Valid() {
 		panic("Iterator is Invalid")
 	}
@@ -356,7 +386,7 @@ func (iter *memoryIterator) Next() {
 	iter.cursor++
 }
 
-func (iter *memoryIterator) Valid() bool {
+func (iter *dummyIterator) Valid() bool {
 	// Once invalid, forever invalid.
 	if iter.isInvalid {
 		return false
@@ -365,7 +395,7 @@ func (iter *memoryIterator) Valid() bool {
 	return 0 <= iter.cursor && iter.cursor < len(iter.keys)
 }
 
-func (iter *memoryIterator) Key() (key []byte) {
+func (iter *dummyIterator) Key() (key []byte) {
 	if !iter.Valid() {
 		panic("Iterator is Invalid")
 	}
@@ -373,7 +403,7 @@ func (iter *memoryIterator) Key() (key []byte) {
 	return []byte(iter.keys[iter.cursor])
 }
 
-func (iter *memoryIterator) Value() (value []byte) {
+func (iter *dummyIterator) Value() (value []byte) {
 	if !iter.Valid() {
 		panic("Iterator is Invalid")
 	}

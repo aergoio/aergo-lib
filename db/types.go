@@ -17,6 +17,10 @@ const (
 
 	// MemoryImpl represents a name of DB interface implementation in memory
 	MemoryImpl ImplType = "memorydb"
+
+	// DummyImpl represents a name of DB interface implementation in memory
+	// that only keeps the last 3 records
+	DummyImpl ImplType = "dummydb"
 )
 
 type dbConstructor func(dir string) (DB, error)
