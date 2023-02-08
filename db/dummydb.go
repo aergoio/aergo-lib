@@ -90,8 +90,8 @@ func (db *dummydb) Set(key, value []byte) {
 	}
 	// now add the new key-value pair to the slice
 	db.db = append(db.db, kv{key: string(key), value: value})
-	// if the slice is longer than 3, remove the first element
-	if len(db.db) > 3 {
+	// if the slice is longer than 64, remove the first element
+	if len(db.db) > 64 {
 		db.db = db.db[1:]
 	}
 

@@ -19,7 +19,7 @@ const (
 	MemoryImpl ImplType = "memorydb"
 
 	// DummyImpl represents a name of DB interface implementation in memory
-	// that only keeps the last 3 records
+	// that only keeps the last 64 records
 	DummyImpl ImplType = "dummydb"
 )
 
