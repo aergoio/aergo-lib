@@ -15,6 +15,11 @@ import (
 	"sync"
 )
 
+type kv struct {
+	key   string
+	value []byte
+}
+
 // This function is always called first
 func init() {
 	dbConstructor := func(dir string) (DB, error) {
@@ -185,12 +190,6 @@ type dummyTransaction struct {
 	isCommit  bool
 }
 
-type txOp struct {
-	isSet bool
-	key   []byte
-	value []byte
-}
-
 func (transaction *dummyTransaction) Set(key, value []byte) {
 	transaction.txLock.Lock()
 	defer transaction.txLock.Unlock()
@@ -323,27 +322,6 @@ type dummyIterator struct {
 	db        *dummydb
 }
 
-func isKeyInRange(key []byte, start []byte, end []byte, reverse bool) bool {
-	if reverse {
-		if start != nil && bytes.Compare(start, key) < 0 {
-			return false
-		}
-		if end != nil && bytes.Compare(key, end) <= 0 {
-			return false
-		}
-		return true
-	}
-
-	if bytes.Compare(key, start) < 0 {
-		return false
-	}
-	if end != nil && bytes.Compare(end, key) <= 0 {
-		return false
-	}
-	return true
-
-}
-
 func (db *dummydb) Iterator(start, end []byte) Iterator {
 	db.lock.Lock()
 	defer db.lock.Unlock()
@@ -359,9 +337,9 @@ func (db *dummydb) Iterator(start, end []byte) Iterator {
 
 	var keys sort.StringSlice
 
-	for key := range db.db {
-		if isKeyInRange([]byte(key), start, end, reverse) {
-			keys = append(keys, key)
+	for _, kv := range db.db {
+		if isKeyInRange([]byte(kv.key), start, end, reverse) {
+			keys = append(keys, kv.key)
 		}
 	}
 	if reverse {
