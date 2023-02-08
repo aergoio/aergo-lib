@@ -74,9 +74,8 @@ func (db *dummydb) Type() string {
 	return "dummydb"
 }
 
-func (db *dummydb) Set(key, value []byte) {
-	db.lock.Lock()
-	defer db.lock.Unlock()
+// this function does not lock the mutex
+func (db *dummydb) set(key, value []byte) {
 
 	key = convNilToBytes(key)
 	value = convNilToBytes(value)
@@ -97,9 +96,8 @@ func (db *dummydb) Set(key, value []byte) {
 
 }
 
-func (db *dummydb) Delete(key []byte) {
-	db.lock.Lock()
-	defer db.lock.Unlock()
+// this function does not lock the mutex
+func (db *dummydb) delete(key []byte) {
 
 	key = convNilToBytes(key)
 
@@ -110,11 +108,11 @@ func (db *dummydb) Delete(key []byte) {
 			break
 		}
 	}
+
 }
 
-func (db *dummydb) Get(key []byte) []byte {
-	db.lock.Lock()
-	defer db.lock.Unlock()
+// this function does not lock the mutex
+func (db *dummydb) get(key []byte) []byte {
 
 	key = convNilToBytes(key)
 
@@ -127,6 +125,24 @@ func (db *dummydb) Get(key []byte) []byte {
 
 	// if the key does not exist, return nil
 	return nil
+}
+
+func (db *dummydb) Set(key, value []byte) {
+	db.lock.Lock()
+	db.set(key, value)
+	db.lock.Unlock()
+}
+
+func (db *dummydb) Delete(key []byte) {
+	db.lock.Lock()
+	db.delete(key)
+	db.lock.Unlock()
+}
+
+func (db *dummydb) Get(key []byte) []byte {
+	db.lock.Lock()
+	defer db.lock.Unlock()
+	return db.get(key)
 }
 
 func (db *dummydb) Exist(key []byte) bool {
@@ -227,9 +243,9 @@ func (transaction *dummyTransaction) Commit() {
 	for e := transaction.opList.Front(); e != nil; e = e.Next() {
 		op := e.Value.(*txOp)
 		if op.isSet {
-			db.Set(op.key, op.value)
+			db.set(op.key, op.value)
 		} else {
-			db.Delete(op.key)
+			db.delete(op.key)
 		}
 	}
 
@@ -292,9 +308,9 @@ func (bulk *dummyBulk) Flush() {
 	for e := bulk.opList.Front(); e != nil; e = e.Next() {
 		op := e.Value.(*txOp)
 		if op.isSet {
-			db.Set(op.key, op.value)
+			db.set(op.key, op.value)
 		} else {
-			db.Delete(op.key)
+			db.delete(op.key)
 		}
 	}
 
