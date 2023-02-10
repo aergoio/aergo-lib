@@ -15,11 +15,6 @@ import (
 	"sync"
 )
 
-type kv struct {
-	key   string
-	value []byte
-}
-
 // This function is always called first
 func init() {
 	dbConstructor := func(dir string) (DB, error) {
@@ -29,7 +24,7 @@ func init() {
 }
 
 func newDummyDB(dir string) (DB, error) {
-	var db []kv
+	var db []map[string][]byte
 
 	filePath := path.Join(dir, "database")
 
@@ -46,7 +41,7 @@ func newDummyDB(dir string) (DB, error) {
 	file.Close()
 
 	if db == nil {
-		db = make([]kv, 0)
+		db = make([]map[string][]byte, 0)
 	}
 
 	database := &dummydb{
@@ -64,14 +59,30 @@ func newDummyDB(dir string) (DB, error) {
 // Enforce database and transaction implements interfaces
 var _ DB = (*dummydb)(nil)
 
+// this defines a slice of maps. each map has this format: map[string][]byte
+// the slice is used to simulate a database with multiple versions
+// the first element in the slice is the newest version
+// the last element in the slice is the oldest version
+
 type dummydb struct {
 	lock sync.Mutex
-	db   []kv
+	db   []map[string][]byte
 	dir  string
 }
 
 func (db *dummydb) Type() string {
 	return "dummydb"
+}
+
+// add a new version to the database and remove the oldest one if
+// the database has more than 10 versions
+func (db *dummydb) add_version() {
+	// add a new version to the database
+	db.db = append([]map[string][]byte{make(map[string][]byte)}, db.db...)
+	// check if the database has more than 10 versions. if it does, remove the oldest
+	if len(db.db) > 10 {
+		db.db = db.db[:len(db.db)-1]
+	}
 }
 
 // this function does not lock the mutex
@@ -80,19 +91,8 @@ func (db *dummydb) set(key, value []byte) {
 	key = convNilToBytes(key)
 	value = convNilToBytes(value)
 
-	// check if the key already exists. if it does, remove it from the slice
-	for i, kv := range db.db {
-		if kv.key == string(key) {
-			db.db = append(db.db[:i], db.db[i+1:]...)
-			break
-		}
-	}
-	// now add the new key-value pair to the slice
-	db.db = append(db.db, kv{key: string(key), value: value})
-	// if the slice is longer than 64, remove the first element
-	if len(db.db) > 64 {
-		db.db = db.db[1:]
-	}
+	// add the key-value pair to the last version
+	db.db[0][string(key)] = value
 
 }
 
@@ -101,12 +101,9 @@ func (db *dummydb) delete(key []byte) {
 
 	key = convNilToBytes(key)
 
-	// check if the key already exists. if it does, remove it from the slice
-	for i, kv := range db.db {
-		if kv.key == string(key) {
-			db.db = append(db.db[:i], db.db[i+1:]...)
-			break
-		}
+	// remove the key-value pair from all versions
+	for _, kv := range db.db {
+		delete(kv, string(key))
 	}
 
 }
@@ -116,10 +113,11 @@ func (db *dummydb) get(key []byte) []byte {
 
 	key = convNilToBytes(key)
 
-	// check if the key exists. if it does, return the value
+	// iterate over the database from the latest version to the oldest
+	// and return the value of the key if it exists
 	for _, kv := range db.db {
-		if kv.key == string(key) {
-			return kv.value
+		if value := kv[string(key)]; value != nil {
+			return value
 		}
 	}
 
@@ -129,12 +127,14 @@ func (db *dummydb) get(key []byte) []byte {
 
 func (db *dummydb) Set(key, value []byte) {
 	db.lock.Lock()
+	db.add_version()
 	db.set(key, value)
 	db.lock.Unlock()
 }
 
 func (db *dummydb) Delete(key []byte) {
 	db.lock.Lock()
+	db.add_version()
 	db.delete(key)
 	db.lock.Unlock()
 }
@@ -153,7 +153,7 @@ func (db *dummydb) Exist(key []byte) bool {
 
 	// check if the key exists. if it does, return true
 	for _, kv := range db.db {
-		if kv.key == string(key) {
+		if kv[string(key)] != nil {
 			return true
 		}
 	}
@@ -240,6 +240,8 @@ func (transaction *dummyTransaction) Commit() {
 	db.lock.Lock()
 	defer db.lock.Unlock()
 
+	db.add_version()
+
 	for e := transaction.opList.Front(); e != nil; e = e.Next() {
 		op := e.Value.(*txOp)
 		if op.isSet {
@@ -305,6 +307,8 @@ func (bulk *dummyBulk) Flush() {
 	db.lock.Lock()
 	defer db.lock.Unlock()
 
+	db.add_version()
+
 	for e := bulk.opList.Front(); e != nil; e = e.Next() {
 		op := e.Value.(*txOp)
 		if op.isSet {
@@ -344,7 +348,7 @@ func (db *dummydb) Iterator(start, end []byte) Iterator {
 
 	var reverse bool
 
-	// if end is bigger then start, then reverse order
+	// if end is bigger than start, then reverse order
 	if bytes.Compare(start, end) == 1 {
 		reverse = true
 	} else {
@@ -353,11 +357,26 @@ func (db *dummydb) Iterator(start, end []byte) Iterator {
 
 	var keys sort.StringSlice
 
+	// iterate over all versions
 	for _, kv := range db.db {
-		if isKeyInRange([]byte(kv.key), start, end, reverse) {
-			keys = append(keys, kv.key)
+		// iterate over all keys in a version
+		for key := range kv {
+			if isKeyInRange([]byte(key), start, end, reverse) {
+				// check if key is already in the list
+				found := false
+				for _, k := range keys {
+					if k == key {
+						found = true
+						break
+					}
+				}
+				if !found {
+					keys = append(keys, key)
+				}
+			}
 		}
 	}
+
 	if reverse {
 		sort.Sort(sort.Reverse(keys))
 	} else {

@@ -317,7 +317,7 @@ func (db *memorydb) Iterator(start, end []byte) Iterator {
 
 	var reverse bool
 
-	// if end is bigger then start, then reverse order
+	// if end is bigger than start, then reverse order
 	if bytes.Compare(start, end) == 1 {
 		reverse = true
 	} else {
