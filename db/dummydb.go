@@ -359,28 +359,30 @@ func (db *dummydb) Iterator(start, end []byte) Iterator {
 		reverse = false
 	}
 
-	var keys sort.StringSlice
+	// create a list of unique keys using a map as a set
+	set := make(map[string]bool)
 
 	// iterate over all versions
 	for _, kv := range db.db {
 		// iterate over all keys in a version
 		for key := range kv {
-			if isKeyInRange([]byte(key), start, end, reverse) {
-				// check if key is already in the list
-				found := false
-				for _, k := range keys {
-					if k == key {
-						found = true
-						break
-					}
-				}
-				if !found {
-					keys = append(keys, key)
+			// check if the key is already in the set
+			if !set[key] {
+				// check if the key is in the range
+				if isKeyInRange([]byte(key), start, end, reverse) {
+					set[key] = true
 				}
 			}
 		}
 	}
 
+	// create a list of keys
+	var keys sort.StringSlice
+	for key := range set {
+		keys = append(keys, key)
+	}
+
+	// sort the keys
 	if reverse {
 		sort.Sort(sort.Reverse(keys))
 	} else {
