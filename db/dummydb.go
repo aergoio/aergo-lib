@@ -37,7 +37,6 @@ func newDummyDB(dir string) (DB, error) {
 			return nil, err
 		}
 	}
-
 	file.Close()
 
 	if db == nil {
@@ -68,15 +67,20 @@ type dummydb struct {
 	lock sync.Mutex
 	db   []map[string][]byte
 	dir  string
+	versions_since_save int
 }
 
 func (db *dummydb) Type() string {
 	return "dummydb"
 }
 
-// add a new version to the database and remove the oldest one if
-// the database has more than 10 versions
+// add a new version to the database
 func (db *dummydb) add_version() {
+	// save the database to a file every 1000 versions
+	if db.versions_since_save >= 1000 {
+		db.save()
+	}
+	db.versions_since_save++
 	// add a new version to the database
 	db.db = append([]map[string][]byte{make(map[string][]byte)}, db.db...)
 	// check if the database has more than 10 versions. if it does,
@@ -166,7 +170,7 @@ func (db *dummydb) Exist(key []byte) bool {
 	return false
 }
 
-func (db *dummydb) Close() {
+func (db *dummydb) save() {
 	db.lock.Lock()
 	defer db.lock.Unlock()
 
@@ -176,6 +180,12 @@ func (db *dummydb) Close() {
 		encoder.Encode(db.db)
 	}
 	file.Close()
+
+	db.versions_since_save = 0
+}
+
+func (db *dummydb) Close() {
+	db.save()
 }
 
 func (db *dummydb) NewTx() Transaction {
