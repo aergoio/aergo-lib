@@ -19,7 +19,7 @@ const (
 	MemoryImpl ImplType = "memorydb"
 
 	// DummyImpl represents a name of DB interface implementation in memory
-	// that only keeps the first block + the last 10 blocks
+	// that only keeps the first block + the last 512 blocks
 	DummyImpl ImplType = "dummydb"
 )
 

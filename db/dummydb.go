@@ -83,11 +83,11 @@ func (db *dummydb) add_version() {
 	db.versions_since_save++
 	// add a new version to the database
 	db.db = append([]map[string][]byte{make(map[string][]byte)}, db.db...)
-	// check if the database has more than 10 versions. if it does,
-	// remove the version just before the oldest one
-	// eg: keeps 0-8, removes 9, keeps 10
+	// check if the database has more than 512 versions. if it does,
+	// remove the version just before the oldest one.
+	// eg: keeps 0-510, removes 511, keeps 512
 	// this is used to keep the genesis block in the database
-	if len(db.db) > 10 {
+	if len(db.db) > 512 {
 		oldest := db.db[len(db.db)-1]
 		db.db = append(db.db[:len(db.db)-2], oldest)
 	}
