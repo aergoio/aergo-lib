@@ -171,8 +171,6 @@ func (db *dummydb) Exist(key []byte) bool {
 }
 
 func (db *dummydb) save() {
-	db.lock.Lock()
-	defer db.lock.Unlock()
 
 	file, err := os.OpenFile(db.dir, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0666)
 	if err == nil {
@@ -182,10 +180,13 @@ func (db *dummydb) save() {
 	file.Close()
 
 	db.versions_since_save = 0
+
 }
 
 func (db *dummydb) Close() {
+	db.lock.Lock()
 	db.save()
+	db.lock.Unlock()
 }
 
 func (db *dummydb) NewTx() Transaction {
