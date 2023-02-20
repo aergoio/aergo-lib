@@ -28,6 +28,7 @@ type dbConstructor func(dir string) (DB, error)
 // DB is an general interface to access at storage data
 type DB interface {
 	Type() string
+	Path() string
 	Set(key, value []byte)
 	Delete(key []byte)
 	Get(key []byte) []byte

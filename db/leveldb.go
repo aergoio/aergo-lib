@@ -34,6 +34,7 @@ func newLevelDB(dir string) (DB, error) {
 
 	database := &levelDB{
 		db: db,
+		path: dbPath,
 	}
 	return database, nil
 }
@@ -47,10 +48,15 @@ var _ DB = (*levelDB)(nil)
 
 type levelDB struct {
 	db *leveldb.DB
+	path string
 }
 
 func (db *levelDB) Type() string {
 	return "leveldb"
+}
+
+func (db *levelDB) Path() string {
+	return db.path
 }
 
 func (db *levelDB) Set(key, value []byte) {

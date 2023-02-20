@@ -130,6 +130,10 @@ func (db *badgerDB) Type() string {
 	return "badgerdb"
 }
 
+func (db *badgerDB) Path() string {
+	return db.name
+}
+
 func (db *badgerDB) Set(key, value []byte) {
 	key = convNilToBytes(key)
 	value = convNilToBytes(value)

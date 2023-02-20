@@ -74,6 +74,10 @@ func (db *dummydb) Type() string {
 	return "dummydb"
 }
 
+func (db *dummydb) Path() string {
+	return db.dir
+}
+
 // add a new version to the database
 func (db *dummydb) add_version() {
 	// save the database to a file every 1000 versions
