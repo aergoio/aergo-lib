@@ -160,7 +160,7 @@ func TestTransactionCommitTwice(t *testing.T) {
 		tx.Commit()
 
 		// a second commit will cause panic
-		assert.Panics(t, func() { tx.Commit() })
+		assert.Panics(t, func() { tx.Commit() }, db.Type())
 
 		db.Close()
 		os.RemoveAll(dir)
