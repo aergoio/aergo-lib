@@ -225,6 +225,12 @@ func (db *badgerDB) Close() {
 	}
 }
 
+func (db *badgerDB) IoCtl(ioCtlType string) {
+	if ioCtlType == "save" {
+		db.db.Sync()
+	}
+}
+
 func (db *badgerDB) NewTx() Transaction {
 	badgerTx := db.db.NewTransaction(true)
 

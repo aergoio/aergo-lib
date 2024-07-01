@@ -112,16 +112,28 @@ func (db *memorydb) Exist(key []byte) bool {
 	return ok
 }
 
-func (db *memorydb) Close() {
-	db.lock.Lock()
-	defer db.lock.Unlock()
-
+func (db *memorydb) save() {
 	file, err := os.OpenFile(db.dir, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0666)
 	if err == nil {
 		encoder := gob.NewEncoder(file)
 		encoder.Encode(db.db)
 	}
 	file.Close()
+}
+
+func (db *memorydb) Close() {
+	db.lock.Lock()
+	defer db.lock.Unlock()
+	db.save()
+}
+
+func (db *memorydb) IoCtl(ioCtlType string) {
+	db.lock.Lock()
+	defer db.lock.Unlock()
+
+	if ioCtlType == "save" {
+		db.save()
+	}
 }
 
 func (db *memorydb) NewTx() Transaction {

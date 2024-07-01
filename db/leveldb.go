@@ -101,6 +101,12 @@ func (db *levelDB) Close() {
 	db.db.Close()
 }
 
+func (db *levelDB) IoCtl(ioCtlType string) {
+	if ioCtlType == "save" {
+		db.db.Sync()
+	}
+}
+
 func (db *levelDB) NewTx() Transaction {
 	batch := new(leveldb.Batch)
 

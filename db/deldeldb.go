@@ -182,6 +182,17 @@ func (db *deldeldb) Close() {
 	db.lock.Unlock()
 }
 
+func (db *deldeldb) IoCtl(ioCtlType string) {
+	db.lock.Lock()
+	defer db.lock.Unlock()
+
+	if ioCtlType == "reset-deletions" {
+		db.deletions = make([]map[string]bool, 0)
+	} else if ioCtlType == "save" {
+		db.save()
+	}
+}
+
 func (db *deldeldb) NewTx() Transaction {
 	db.lock.Lock()
 	defer db.lock.Unlock()

@@ -193,6 +193,15 @@ func (db *dummydb) Close() {
 	db.lock.Unlock()
 }
 
+func (db *dummydb) IoCtl(ioCtlType string) {
+	db.lock.Lock()
+	defer db.lock.Unlock()
+
+	if ioCtlType == "save" {
+		db.save()
+	}
+}
+
 func (db *dummydb) NewTx() Transaction {
 
 	return &dummyTransaction{

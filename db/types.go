@@ -41,6 +41,7 @@ type DB interface {
 	NewTx() Transaction
 	NewBulk() Bulk
 	Close()
+	IoCtl(ioCtlType string)
 	//Print()
 	//Stats() map[string]string
 }
