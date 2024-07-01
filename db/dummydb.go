@@ -20,7 +20,7 @@ func init() {
 	dbConstructor := func(dir string) (DB, error) {
 		return newDummyDB(dir)
 	}
-	registorDBConstructor(DummyImpl, dbConstructor)
+	registerDBConstructor(DummyImpl, dbConstructor)
 }
 
 func newDummyDB(dir string) (DB, error) {

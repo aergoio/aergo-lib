@@ -63,7 +63,7 @@ import (
 var dbImpls = map[ImplType]dbConstructor{}
 var logger *extendedLog
 
-func registorDBConstructor(dbimpl ImplType, constructor dbConstructor) {
+func registerDBConstructor(dbimpl ImplType, constructor dbConstructor) {
 	dbImpls[dbimpl] = constructor
 }
 

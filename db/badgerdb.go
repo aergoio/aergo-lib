@@ -27,7 +27,7 @@ func init() {
 	dbConstructor := func(dir string) (DB, error) {
 		return newBadgerDB(dir)
 	}
-	registorDBConstructor(BadgerImpl, dbConstructor)
+	registerDBConstructor(BadgerImpl, dbConstructor)
 }
 
 func (db *badgerDB) runBadgerGC() {

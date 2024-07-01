@@ -21,7 +21,7 @@ func init() {
 	dbConstructor := func(dir string) (DB, error) {
 		return newLevelDB(dir)
 	}
-	registorDBConstructor(LevelImpl, dbConstructor)
+	registerDBConstructor(LevelImpl, dbConstructor)
 }
 
 func newLevelDB(dir string) (DB, error) {

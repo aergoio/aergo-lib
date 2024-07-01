@@ -17,7 +17,7 @@ func init() {
 	dbConstructor := func(dir string) (DB, error) {
 		return newDelayedDeletionDB(dir)
 	}
-	registorDBConstructor(DelayedDeletionImpl, dbConstructor)
+	registerDBConstructor(DelayedDeletionImpl, dbConstructor)
 }
 
 func newDelayedDeletionDB(dir string) (DB, error) {
@@ -41,6 +41,8 @@ func newDelayedDeletionDB(dir string) (DB, error) {
 		}
 	}
 	file.Close()
+	// delete the file
+	os.Remove(filePath)
 
 	if deletions == nil {
 		deletions = make([]map[string]bool, 0)
