@@ -70,8 +70,13 @@ func registerDBConstructor(dbimpl ImplType, constructor dbConstructor) {
 // NewDB creates new database or load existing database in the directory
 func NewDB(dbimpltype ImplType, dir string) DB {
 	logger = &extendedLog{Logger: log.NewLogger("db")}
-	db, err := dbImpls[dbimpltype](dir)
 
+	impl := dbImpls[dbimpltype]
+	if impl == nil {
+		panic(fmt.Sprintf("Unknown DB implementation: %v", dbimpltype))
+	}
+
+	db, err := impl(dir)
 	if err != nil {
 		panic(fmt.Sprintf("Fail to Create New DB: %v", err))
 	}

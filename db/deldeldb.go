@@ -104,7 +104,7 @@ func (db *deldeldb) add_transaction() {
 }
 
 // commonSet handles the common logic for setting a key-value pair
-func (db *deldeldb) commonSet(key, value []byte, autoCommit bool, setFunc func([]byte, []byte)) {
+func (db *deldeldb) commonSet(key, value []byte, autoCommit bool, setFunc func([]byte, []byte), deleteFunc func([]byte)) {
 	db.lock.Lock()
 	defer db.lock.Unlock()
 
@@ -133,6 +133,11 @@ func (db *deldeldb) commonSet(key, value []byte, autoCommit bool, setFunc func([
 		// set the key-value pair in the underlying database
 		value = append([]byte{referenceCounter}, value...)
 		setFunc(key, value)
+		// if the previous stored value is a hash
+		if len(currentValue) == 33 {
+			// delete the value associated with the hash  [hash(value) -> value]
+			db.processDelete(currentValue[1:], setFunc, deleteFunc)
+		}
 	} else {
 		// increase the reference counter
 		currentValue[0]++
@@ -150,6 +155,11 @@ func (db *deldeldb) commonDelete(key []byte, autoCommit bool, setFunc func([]byt
 	if autoCommit {
 		db.add_transaction()
 	}
+
+	db.processDelete(key, setFunc, deleteFunc)
+}
+
+func (db *deldeldb) processDelete(key []byte, setFunc func([]byte, []byte), deleteFunc func([]byte)) {
 
 	// add the key to the list of deletions of the last transaction
 	db.deletions[len(db.deletions)-1][string(key)] = true
@@ -199,7 +209,7 @@ func (db *deldeldb) commonGet(key []byte) []byte {
 }
 
 func (db *deldeldb) Set(key, value []byte) {
-	db.commonSet(key, value, true, db.db.Set)
+	db.commonSet(key, value, true, db.db.Set, db.db.Delete)
 }
 
 func (db *deldeldb) Delete(key []byte) {
@@ -295,7 +305,7 @@ func (transaction *deldelTransaction) Set(key, value []byte) {
 	transaction.txLock.Lock()
 	defer transaction.txLock.Unlock()
 
-	transaction.db.commonSet(key, value, false, transaction.tx.Set)
+	transaction.db.commonSet(key, value, false, transaction.tx.Set, transaction.tx.Delete)
 }
 
 func (transaction *deldelTransaction) Delete(key []byte) {
@@ -370,7 +380,7 @@ func (bulk *deldelBulk) Set(key, value []byte) {
 	bulk.txLock.Lock()
 	defer bulk.txLock.Unlock()
 
-	bulk.db.commonSet(key, value, false, bulk.bulk.Set)
+	bulk.db.commonSet(key, value, false, bulk.bulk.Set, bulk.bulk.Delete)
 }
 
 func (bulk *deldelBulk) Delete(key []byte) {
