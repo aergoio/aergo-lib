@@ -102,9 +102,7 @@ func (db *levelDB) Close() {
 }
 
 func (db *levelDB) IoCtl(ioCtlType string) {
-	if ioCtlType == "save" {
-		db.db.Sync()
-	}
+	// no one supported
 }
 
 func (db *levelDB) NewTx() Transaction {

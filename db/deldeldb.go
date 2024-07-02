@@ -6,6 +6,7 @@
 package db
 
 import (
+	"bytes"
 	"encoding/gob"
 	"os"
 	"path"
@@ -102,58 +103,111 @@ func (db *deldeldb) add_transaction() {
 	db.deletions = append(db.deletions, make(map[string]bool))
 }
 
-// this function does not lock the mutex
-func (db *deldeldb) process_set(key []byte) {
+// commonSet handles the common logic for setting a key-value pair
+func (db *deldeldb) commonSet(key, value []byte, autoCommit bool, setFunc func([]byte, []byte)) {
+	db.lock.Lock()
+	defer db.lock.Unlock()
+
+	if autoCommit {
+		db.add_transaction()
+	}
 
 	key = convNilToBytes(key)
+	value = convNilToBytes(value)
 
 	// remove the key from the list of deletions of all versions
 	for _, deletions := range db.deletions {
 		delete(deletions, string(key))
 	}
 
+	// retrieve the current value
+	currentValue := db.db.Get(key)
+
+	// the first byte is the reference counter
+	var referenceCounter uint8
+
+	// check if the new value is different from the current value
+	if len(currentValue) == 0 || !bytes.Equal(currentValue[1:], value) {
+		// set the reference counter to 1
+		referenceCounter = 1
+		// set the key-value pair in the underlying database
+		value = append([]byte{referenceCounter}, value...)
+		setFunc(key, value)
+	} else {
+		// increase the reference counter
+		currentValue[0]++
+		setFunc(key, currentValue)
+	}
 }
 
-// this function does not lock the mutex
-func (db *deldeldb) process_delete(key []byte) {
+//commonDelete handles the common logic for deleting a key-value pair
+func (db *deldeldb) commonDelete(key []byte, autoCommit bool, setFunc func([]byte, []byte), deleteFunc func([]byte)) {
+	db.lock.Lock()
+	defer db.lock.Unlock()
 
 	key = convNilToBytes(key)
+
+	if autoCommit {
+		db.add_transaction()
+	}
 
 	// add the key to the list of deletions of the last transaction
 	db.deletions[len(db.deletions)-1][string(key)] = true
 
+	// retrieve the current value
+	currentValue := db.db.Get(key)
+
+	// the first byte is the reference counter
+	var referenceCounter uint8
+	if len(currentValue) > 0 {
+		referenceCounter = currentValue[0]
+	} else {
+		referenceCounter = 0
+	}
+
+	// decrease the reference counter
+	if referenceCounter > 0 {
+		referenceCounter--
+	}
+
+	// check if the reference counter is 0
+	if referenceCounter == 0 {
+		// delete the key-value pair in the underlying database
+		deleteFunc(key)
+	} else {
+		// update the reference counter
+		currentValue[0] = referenceCounter
+		setFunc(key, currentValue)
+	}
 }
 
-// this function does not lock the mutex
-func (db *deldeldb) get(key []byte) []byte {
+//commonGet handles the common logic for getting a key-value pair
+func (db *deldeldb) commonGet(key []byte) []byte {
+	db.lock.Lock()
+	defer db.lock.Unlock()
 
 	key = convNilToBytes(key)
 
 	// retrieve the value of the key from the underlying database
-	return db.db.Get(key)
+	value := db.db.Get(key)
 
+	// remove the reference counter
+	if len(value) > 0 {
+		value = value[1:]
+	}
+	return value
 }
 
 func (db *deldeldb) Set(key, value []byte) {
-	db.lock.Lock()
-	db.add_transaction()
-	db.process_set(key)
-	// set the key-value pair in the underlying database
-	db.db.Set(key, value)
-	db.lock.Unlock()
+	db.commonSet(key, value, true, db.db.Set)
 }
 
 func (db *deldeldb) Delete(key []byte) {
-	db.lock.Lock()
-	db.add_transaction()
-	db.process_delete(key)
-	db.lock.Unlock()
+	db.commonDelete(key, true, db.db.Set, db.db.Delete)
 }
 
 func (db *deldeldb) Get(key []byte) []byte {
-	db.lock.Lock()
-	defer db.lock.Unlock()
-	return db.get(key)
+	return db.commonGet(key)
 }
 
 func (db *deldeldb) Exist(key []byte) bool {
@@ -241,28 +295,14 @@ func (transaction *deldelTransaction) Set(key, value []byte) {
 	transaction.txLock.Lock()
 	defer transaction.txLock.Unlock()
 
-	key = convNilToBytes(key)
-	value = convNilToBytes(value)
-
-	// remove the key from the list of deletions of all versions
-	transaction.db.lock.Lock()
-	transaction.db.process_set(key)
-	transaction.db.lock.Unlock()
-
-	// set the key-value pair in the underlying database
-	transaction.tx.Set(key, value)
+	transaction.db.commonSet(key, value, false, transaction.tx.Set)
 }
 
 func (transaction *deldelTransaction) Delete(key []byte) {
 	transaction.txLock.Lock()
 	defer transaction.txLock.Unlock()
 
-	key = convNilToBytes(key)
-
-	// add the key to the list of deletions of the last transaction
-	transaction.db.lock.Lock()
-	transaction.db.process_delete(key)
-	transaction.db.lock.Unlock()
+	transaction.db.commonDelete(key, false, transaction.tx.Set, transaction.tx.Delete)
 }
 
 func (transaction *deldelTransaction) Commit() {
@@ -330,28 +370,14 @@ func (bulk *deldelBulk) Set(key, value []byte) {
 	bulk.txLock.Lock()
 	defer bulk.txLock.Unlock()
 
-	key = convNilToBytes(key)
-	value = convNilToBytes(value)
-
-	// remove the key from the list of deletions of all versions
-	bulk.db.lock.Lock()
-	bulk.db.process_set(key)
-	bulk.db.lock.Unlock()
-
-	// set the key-value pair in the underlying database
-	bulk.bulk.Set(key, value)
+	bulk.db.commonSet(key, value, false, bulk.bulk.Set)
 }
 
 func (bulk *deldelBulk) Delete(key []byte) {
 	bulk.txLock.Lock()
 	defer bulk.txLock.Unlock()
 
-	key = convNilToBytes(key)
-
-	// add the key to the list of deletions of the last transaction
-	bulk.db.lock.Lock()
-	bulk.db.process_delete(key)
-	bulk.db.lock.Unlock()
+	bulk.db.commonDelete(key, false, bulk.bulk.Set, bulk.bulk.Delete)
 }
 
 func (bulk *deldelBulk) Flush() {
@@ -406,6 +432,9 @@ func (bulk *deldelBulk) DiscardLast() {
 //=========================================================
 // Iterator Implementation
 //=========================================================
+
+// the iterator is returning the value with the reference counter
+// but as it is not being used, it is left as is
 
 func (db *deldeldb) Iterator(start, end []byte) Iterator {
 	db.lock.Lock()
