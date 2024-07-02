@@ -80,8 +80,8 @@ func (db *dummydb) Path() string {
 
 // add a new version to the database
 func (db *dummydb) add_version() {
-	// save the database to a file every 1000 versions
-	if db.versions_since_save >= 1000 {
+	// save the database to a file every 256 versions
+	if db.versions_since_save >= 256 {
 		db.save()
 	}
 	db.versions_since_save++

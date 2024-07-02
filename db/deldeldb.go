@@ -66,9 +66,9 @@ func newDelayedDeletionDB(dir string) (DB, error) {
 var _ DB = (*deldeldb)(nil)
 
 // this file implements a database that delays the deletion of keys.
-// it keeps the list of keys that have been deleted on the last 32 transactions
+// it keeps the list of keys that have been deleted on the last 300 transactions
 // and only deletes the keys of the oldest transaction on a commit, when the
-// list of transactions has 32 elements.
+// list of transactions has 300 elements.
 // it is a wrapper around an underlying database where most calls are passed
 // through and only the delete, set and commit functions are modified to process
 // data before passing it to the underlying database.
@@ -81,7 +81,7 @@ var _ DB = (*deldeldb)(nil)
 // of deletions.
 
 // define the number of transactions to delay the deletion of keys
-const MAX_TRANSACTIONS = 32
+const MAX_TRANSACTIONS = 300
 
 type deldeldb struct {
 	lock      sync.Mutex
@@ -116,8 +116,9 @@ func (db *deldeldb) commonSet(key, value []byte, autoCommit bool, setFunc func([
 	value = convNilToBytes(value)
 
 	// remove the key from the list of deletions of all versions
+	skey := string(key)
 	for _, deletions := range db.deletions {
-		delete(deletions, string(key))
+		delete(deletions, skey)
 	}
 
 	// retrieve the current value
@@ -330,7 +331,7 @@ func (transaction *deldelTransaction) Commit() {
 	db.lock.Lock()
 	defer db.lock.Unlock()
 
-	// check if there are 32 transactions
+	// check if there are more transactions than the maximum
 	if len(db.deletions) > MAX_TRANSACTIONS {
 		// process the list of deletions of the oldest transaction
 		for key, _ := range db.deletions[0] {
@@ -405,7 +406,7 @@ func (bulk *deldelBulk) Flush() {
 	db.lock.Lock()
 	defer db.lock.Unlock()
 
-	// check if there are 32 transactions
+	// check if there are more transactions than the maximum
 	if len(db.deletions) > MAX_TRANSACTIONS {
 		// process the list of deletions of the oldest transaction
 		for key, _ := range db.deletions[0] {
