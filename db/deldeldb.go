@@ -104,7 +104,7 @@ func (db *deldeldb) add_transaction() {
 }
 
 // commonSet handles the common logic for setting a key-value pair
-func (db *deldeldb) commonSet(key, value []byte, autoCommit bool, setFunc func([]byte, []byte), deleteFunc func([]byte)) {
+func (db *deldeldb) commonSet(key, value []byte, autoCommit bool, setFunc func([]byte, []byte)) {
 	db.lock.Lock()
 	defer db.lock.Unlock()
 
@@ -137,7 +137,7 @@ func (db *deldeldb) commonSet(key, value []byte, autoCommit bool, setFunc func([
 		// if the previous stored value is a hash
 		if len(currentValue) == 33 {
 			// delete the value associated with the hash  [hash(value) -> value]
-			db.processDelete(currentValue[1:], setFunc, deleteFunc)
+			db.queueDelete(currentValue[1:])
 		}
 	} else {
 		// increase the reference counter
@@ -147,7 +147,7 @@ func (db *deldeldb) commonSet(key, value []byte, autoCommit bool, setFunc func([
 }
 
 //commonDelete handles the common logic for deleting a key-value pair
-func (db *deldeldb) commonDelete(key []byte, autoCommit bool, setFunc func([]byte, []byte), deleteFunc func([]byte)) {
+func (db *deldeldb) commonDelete(key []byte, autoCommit bool) {
 	db.lock.Lock()
 	defer db.lock.Unlock()
 
@@ -157,13 +157,30 @@ func (db *deldeldb) commonDelete(key []byte, autoCommit bool, setFunc func([]byt
 		db.add_transaction()
 	}
 
-	db.processDelete(key, setFunc, deleteFunc)
+	db.queueDelete(key)
+}
+
+func (db *deldeldb) queueDelete(key []byte) {
+	// add the key to the list of deletions of the last transaction
+	db.deletions[len(db.deletions)-1][string(key)] = true
+}
+
+func (db *deldeldb) processDeletions(setFunc func([]byte, []byte), deleteFunc func([]byte)) {
+
+	// check if there are more transactions than the maximum
+	if len(db.deletions) > MAX_TRANSACTIONS {
+		// process the list of deletions of the oldest transaction
+		for key, _ := range db.deletions[0] {
+			// delete the key from the underlying database
+			db.processDelete([]byte(key), setFunc, deleteFunc)
+		}
+		// remove the list of deletions of the oldest transaction
+		db.deletions = db.deletions[1:]
+	}
+
 }
 
 func (db *deldeldb) processDelete(key []byte, setFunc func([]byte, []byte), deleteFunc func([]byte)) {
-
-	// add the key to the list of deletions of the last transaction
-	db.deletions[len(db.deletions)-1][string(key)] = true
 
 	// retrieve the current value
 	currentValue := db.db.Get(key)
@@ -210,11 +227,11 @@ func (db *deldeldb) commonGet(key []byte) []byte {
 }
 
 func (db *deldeldb) Set(key, value []byte) {
-	db.commonSet(key, value, true, db.db.Set, db.db.Delete)
+	db.commonSet(key, value, true, db.db.Set)
 }
 
 func (db *deldeldb) Delete(key []byte) {
-	db.commonDelete(key, true, db.db.Set, db.db.Delete)
+	db.commonDelete(key, true)
 }
 
 func (db *deldeldb) Get(key []byte) []byte {
@@ -306,14 +323,14 @@ func (transaction *deldelTransaction) Set(key, value []byte) {
 	transaction.txLock.Lock()
 	defer transaction.txLock.Unlock()
 
-	transaction.db.commonSet(key, value, false, transaction.tx.Set, transaction.tx.Delete)
+	transaction.db.commonSet(key, value, false, transaction.tx.Set)
 }
 
 func (transaction *deldelTransaction) Delete(key []byte) {
 	transaction.txLock.Lock()
 	defer transaction.txLock.Unlock()
 
-	transaction.db.commonDelete(key, false, transaction.tx.Set, transaction.tx.Delete)
+	transaction.db.commonDelete(key, false)
 }
 
 func (transaction *deldelTransaction) Commit() {
@@ -331,16 +348,8 @@ func (transaction *deldelTransaction) Commit() {
 	db.lock.Lock()
 	defer db.lock.Unlock()
 
-	// check if there are more transactions than the maximum
-	if len(db.deletions) > MAX_TRANSACTIONS {
-		// process the list of deletions of the oldest transaction
-		for key, _ := range db.deletions[0] {
-			// delete the key from the underlying database
-			transaction.tx.Delete([]byte(key))
-		}
-		// remove the list of deletions of the oldest transaction
-		db.deletions = db.deletions[1:]
-	}
+	// process the delayed deletions
+	db.processDeletions(transaction.tx.Set, transaction.tx.Delete)
 
 	// commit the transaction on the underlying database
 	transaction.tx.Commit()
@@ -381,14 +390,14 @@ func (bulk *deldelBulk) Set(key, value []byte) {
 	bulk.txLock.Lock()
 	defer bulk.txLock.Unlock()
 
-	bulk.db.commonSet(key, value, false, bulk.bulk.Set, bulk.bulk.Delete)
+	bulk.db.commonSet(key, value, false, bulk.bulk.Set)
 }
 
 func (bulk *deldelBulk) Delete(key []byte) {
 	bulk.txLock.Lock()
 	defer bulk.txLock.Unlock()
 
-	bulk.db.commonDelete(key, false, bulk.bulk.Set, bulk.bulk.Delete)
+	bulk.db.commonDelete(key, false)
 }
 
 func (bulk *deldelBulk) Flush() {
@@ -406,16 +415,8 @@ func (bulk *deldelBulk) Flush() {
 	db.lock.Lock()
 	defer db.lock.Unlock()
 
-	// check if there are more transactions than the maximum
-	if len(db.deletions) > MAX_TRANSACTIONS {
-		// process the list of deletions of the oldest transaction
-		for key, _ := range db.deletions[0] {
-			// delete the key from the underlying database
-			bulk.bulk.Delete([]byte(key))
-		}
-		// remove the list of deletions of the oldest transaction
-		db.deletions = db.deletions[1:]
-	}
+	// process the delayed deletions
+	db.processDeletions(bulk.bulk.Set, bulk.bulk.Delete)
 
 	// commit the transaction on the underlying database
 	bulk.bulk.Flush()
