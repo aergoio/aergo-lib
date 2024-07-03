@@ -381,7 +381,7 @@ func (bulk *badgerBulk) Flush() {
 	}
 }
 
-func (bulk *badgerBulk) DiscardLast() {
+func (bulk *badgerBulk) Discard() {
 	bulk.bulk.Cancel()
 }
 

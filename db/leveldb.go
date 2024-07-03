@@ -124,8 +124,8 @@ func (db *levelDB) NewBulk() Bulk {
 type levelTransaction struct {
 	db        *levelDB
 	tx        *leveldb.Batch
-	isDiscard bool
-	isCommit  bool
+	isDiscarded bool
+	isCommitted  bool
 }
 
 /*
@@ -143,20 +143,20 @@ func (transaction *levelTransaction) Delete(key []byte) {
 }
 
 func (transaction *levelTransaction) Commit() {
-	if transaction.isDiscard {
+	if transaction.isDiscarded {
 		panic("Commit after dicard tx is not allowed")
-	} else if transaction.isCommit {
+	} else if transaction.isCommitted {
 		panic("Commit occures two times")
 	}
 	err := transaction.db.db.Write(transaction.tx, &opt.WriteOptions{Sync: true})
 	if err != nil {
 		panic(fmt.Sprintf("Database Error: %v", err))
 	}
-	transaction.isCommit = true
+	transaction.isCommitted = true
 }
 
 func (transaction *levelTransaction) Discard() {
-	transaction.isDiscard = true
+	transaction.isDiscarded = true
 }
 
 //=========================================================
@@ -166,8 +166,8 @@ func (transaction *levelTransaction) Discard() {
 type levelBulk struct {
 	db        *levelDB
 	tx        *leveldb.Batch
-	isDiscard bool
-	isCommit  bool
+	isDiscarded bool
+	isCommitted  bool
 }
 
 func (bulk *levelBulk) Set(key, value []byte) {
@@ -181,9 +181,9 @@ func (bulk *levelBulk) Delete(key []byte) {
 func (bulk *levelBulk) Flush() {
 	// do the same behavior that a transaction commit does
 	// db.write internally will handle large transaction
-	if bulk.isDiscard {
+	if bulk.isDiscarded {
 		panic("Commit after dicard tx is not allowed")
-	} else if bulk.isCommit {
+	} else if bulk.isCommitted {
 		panic("Commit occures two times")
 	}
 
@@ -191,11 +191,11 @@ func (bulk *levelBulk) Flush() {
 	if err != nil {
 		panic(fmt.Sprintf("Database Error: %v", err))
 	}
-	bulk.isCommit = true
+	bulk.isCommitted = true
 }
 
-func (bulk *levelBulk) DiscardLast() {
-	bulk.isDiscard = true
+func (bulk *levelBulk) Discard() {
+	bulk.isDiscarded = true
 }
 
 //=========================================================

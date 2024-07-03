@@ -61,7 +61,7 @@ type Bulk interface {
 	Set(key, value []byte)
 	Delete(key []byte)
 	Flush()
-	DiscardLast()
+	Discard()
 }
 
 // Iterator is used to navigate specific key ranges

@@ -269,8 +269,8 @@ func (db *deldeldb) NewTx() Transaction {
 	return &deldelTransaction{
 		db:        db,
 		tx:        db.db.NewTx(),
-		isDiscard: false,
-		isCommit:  false,
+		isDiscarded: false,
+		isCommitted:  false,
 	}
 }
 
@@ -285,8 +285,8 @@ func (db *deldeldb) NewBulk() Bulk {
 	return &deldelBulk{
 		db:        db,
 		bulk:      db.db.NewBulk(),
-		isDiscard: false,
-		isCommit:  false,
+		isDiscarded: false,
+		isCommitted:  false,
 	}
 }
 
@@ -298,8 +298,8 @@ type deldelTransaction struct {
 	txLock    sync.Mutex
 	db        *deldeldb
 	tx        Transaction
-	isDiscard bool
-	isCommit  bool
+	isDiscarded bool
+	isCommitted  bool
 }
 
 func (transaction *deldelTransaction) Set(key, value []byte) {
@@ -320,9 +320,9 @@ func (transaction *deldelTransaction) Commit() {
 	transaction.txLock.Lock()
 	defer transaction.txLock.Unlock()
 
-	if transaction.isDiscard {
+	if transaction.isDiscarded {
 		panic("Commit after dicard tx is not allowed")
-	} else if transaction.isCommit {
+	} else if transaction.isCommitted {
 		panic("Commit occures two times")
 	}
 
@@ -345,7 +345,7 @@ func (transaction *deldelTransaction) Commit() {
 	// commit the transaction on the underlying database
 	transaction.tx.Commit()
 
-	transaction.isCommit = true
+	transaction.isCommitted = true
 }
 
 func (transaction *deldelTransaction) Discard() {
@@ -353,7 +353,7 @@ func (transaction *deldelTransaction) Discard() {
 	defer transaction.txLock.Unlock()
 
 	// if the transaction was not committed, then discard the last list of deletions
-	if !transaction.isCommit {
+	if !transaction.isCommitted {
 		transaction.db.lock.Lock()
 		transaction.db.deletions = transaction.db.deletions[:len(transaction.db.deletions)-1]
 		transaction.db.lock.Unlock()
@@ -362,7 +362,7 @@ func (transaction *deldelTransaction) Discard() {
 	// discard the transaction on the underlying database
 	transaction.tx.Discard()
 
-	transaction.isDiscard = true
+	transaction.isDiscarded = true
 }
 
 //=========================================================
@@ -373,8 +373,8 @@ type deldelBulk struct {
 	txLock    sync.Mutex
 	db        *deldeldb
 	bulk      Bulk
-	isDiscard bool
-	isCommit  bool
+	isDiscarded bool
+	isCommitted  bool
 }
 
 func (bulk *deldelBulk) Set(key, value []byte) {
@@ -395,9 +395,9 @@ func (bulk *deldelBulk) Flush() {
 	bulk.txLock.Lock()
 	defer bulk.txLock.Unlock()
 
-	if bulk.isDiscard {
+	if bulk.isDiscarded {
 		panic("Commit after dicard tx is not allowed")
-	} else if bulk.isCommit {
+	} else if bulk.isCommitted {
 		panic("Commit occures two times")
 	}
 
@@ -420,24 +420,24 @@ func (bulk *deldelBulk) Flush() {
 	// commit the transaction on the underlying database
 	bulk.bulk.Flush()
 
-	bulk.isCommit = true
+	bulk.isCommitted = true
 }
 
-func (bulk *deldelBulk) DiscardLast() {
+func (bulk *deldelBulk) Discard() {
 	bulk.txLock.Lock()
 	defer bulk.txLock.Unlock()
 
 	// if the transaction was not committed, then discard the last list of deletions
-	if !bulk.isCommit {
+	if !bulk.isCommitted {
 		bulk.db.lock.Lock()
 		bulk.db.deletions = bulk.db.deletions[:len(bulk.db.deletions)-1]
 		bulk.db.lock.Unlock()
 	}
 
 	// discard the transaction on the underlying database
-	bulk.bulk.DiscardLast()
+	bulk.bulk.Discard()
 
-	bulk.isDiscard = true
+	bulk.isDiscarded = true
 }
 
 //=========================================================

@@ -207,8 +207,8 @@ func (db *dummydb) NewTx() Transaction {
 	return &dummyTransaction{
 		db:        db,
 		opList:    list.New(),
-		isDiscard: false,
-		isCommit:  false,
+		isDiscarded: false,
+		isCommitted:  false,
 	}
 }
 
@@ -217,8 +217,8 @@ func (db *dummydb) NewBulk() Bulk {
 	return &dummyBulk{
 		db:        db,
 		opList:    list.New(),
-		isDiscard: false,
-		isCommit:  false,
+		isDiscarded: false,
+		isCommitted:  false,
 	}
 }
 
@@ -230,8 +230,8 @@ type dummyTransaction struct {
 	txLock    sync.Mutex
 	db        *dummydb
 	opList    *list.List
-	isDiscard bool
-	isCommit  bool
+	isDiscarded bool
+	isCommitted  bool
 }
 
 func (transaction *dummyTransaction) Set(key, value []byte) {
@@ -257,9 +257,9 @@ func (transaction *dummyTransaction) Commit() {
 	transaction.txLock.Lock()
 	defer transaction.txLock.Unlock()
 
-	if transaction.isDiscard {
+	if transaction.isDiscarded {
 		panic("Commit after dicard tx is not allowed")
-	} else if transaction.isCommit {
+	} else if transaction.isCommitted {
 		panic("Commit occures two times")
 	}
 
@@ -279,14 +279,14 @@ func (transaction *dummyTransaction) Commit() {
 		}
 	}
 
-	transaction.isCommit = true
+	transaction.isCommitted = true
 }
 
 func (transaction *dummyTransaction) Discard() {
 	transaction.txLock.Lock()
 	defer transaction.txLock.Unlock()
 
-	transaction.isDiscard = true
+	transaction.isDiscarded = true
 }
 
 //=========================================================
@@ -297,8 +297,8 @@ type dummyBulk struct {
 	txLock    sync.Mutex
 	db        *dummydb
 	opList    *list.List
-	isDiscard bool
-	isCommit  bool
+	isDiscarded bool
+	isCommitted  bool
 }
 
 func (bulk *dummyBulk) Set(key, value []byte) {
@@ -324,9 +324,9 @@ func (bulk *dummyBulk) Flush() {
 	bulk.txLock.Lock()
 	defer bulk.txLock.Unlock()
 
-	if bulk.isDiscard {
+	if bulk.isDiscarded {
 		panic("Commit after dicard tx is not allowed")
-	} else if bulk.isCommit {
+	} else if bulk.isCommitted {
 		panic("Commit occures two times")
 	}
 
@@ -346,14 +346,14 @@ func (bulk *dummyBulk) Flush() {
 		}
 	}
 
-	bulk.isCommit = true
+	bulk.isCommitted = true
 }
 
-func (bulk *dummyBulk) DiscardLast() {
+func (bulk *dummyBulk) Discard() {
 	bulk.txLock.Lock()
 	defer bulk.txLock.Unlock()
 
-	bulk.isDiscard = true
+	bulk.isDiscarded = true
 }
 
 //=========================================================
