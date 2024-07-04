@@ -464,13 +464,43 @@ func (bulk *deldelBulk) Discard() {
 // Iterator Implementation
 //=========================================================
 
-// the iterator is returning the value with the reference counter
-// but as it is not being used, it is left as is
+type deldelIterator struct {
+	iter    Iterator
+}
 
 func (db *deldeldb) Iterator(start, end []byte) Iterator {
 	db.lock.Lock()
 	defer db.lock.Unlock()
 
-	// just call the underlying database
-	return db.db.Iterator(start, end)
+	// create a new iterator on the underlying database
+	iter := db.db.Iterator(start, end)
+	// return a new iterator that wraps it
+	return &deldelIterator{
+		iter:    iter,
+	}
+}
+
+func (iter *deldelIterator) Next() {
+	iter.iter.Next()
+}
+
+func (iter *deldelIterator) Valid() bool {
+	return iter.iter.Valid()
+}
+
+func (iter *deldelIterator) Key() (key []byte) {
+	return iter.iter.Key()
+}
+
+func (iter *deldelIterator) Value() (value []byte) {
+	retVal := iter.iter.Value()
+	// remove the reference counter
+	if len(retVal) > 0 {
+		retVal = retVal[1:]
+	}
+	return retVal
+}
+
+func (iter *deldelIterator) Close() {
+	iter.iter.Close()
 }
