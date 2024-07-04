@@ -423,8 +423,7 @@ type badgerIterator struct {
 }
 
 func (db *badgerDB) Iterator(start, end []byte) Iterator {
-	badgerTx := db.db.NewTransaction(true)
-
+	badgerTx := db.db.NewTransaction(false) // Read-only transaction
 	var reverse bool
 
 	// if end is bigger than start, then reverse order
@@ -493,4 +492,8 @@ func (iter *badgerIterator) Value() (value []byte) {
 	}
 
 	return retVal
+}
+
+func (iter *badgerIterator) Close() {
+	// do nothing
 }

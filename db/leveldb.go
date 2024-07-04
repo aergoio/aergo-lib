@@ -328,3 +328,7 @@ func (iter *levelIterator) Value() (value []byte) {
 
 	return value
 }
+
+func (iter *levelIterator) Close() {
+	iter.isInvalid = true
+}

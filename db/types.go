@@ -70,4 +70,5 @@ type Iterator interface {
 	Valid() bool
 	Key() []byte
 	Value() []byte
+	Close()
 }

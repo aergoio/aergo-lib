@@ -205,9 +205,12 @@ func TestIter(t *testing.T) {
 		setInitData(db)
 
 		i := 1
+		iter := db.Iterator(nil, nil)
+		defer iter.Close()
 
-		for iter := db.Iterator(nil, nil); iter.Valid(); iter.Next() {
+		for ; iter.Valid(); iter.Next() {
 			assert.EqualValues(t, strconv.Itoa(i), string(iter.Key()))
+			assert.EqualValues(t, strconv.Itoa(i), string(iter.Value()))
 			i++
 		}
 
@@ -225,7 +228,9 @@ func TestRangeIter(t *testing.T) {
 
 		// test iteration 2 -> 5
 		i := 2
-		for iter := db.Iterator([]byte("2"), []byte("5")); iter.Valid(); iter.Next() {
+		iter := db.Iterator([]byte("2"), []byte("5"))
+		defer iter.Close()
+		for ; iter.Valid(); iter.Next() {
 			assert.EqualValues(t, strconv.Itoa(i), string(iter.Key()))
 			assert.EqualValues(t, strconv.Itoa(i), string(iter.Value()))
 			i++
@@ -235,7 +240,9 @@ func TestRangeIter(t *testing.T) {
 		// nil sames with []byte("0")
 		// test iteration 0 -> 5
 		i = 1
-		for iter := db.Iterator(nil, []byte("5")); iter.Valid(); iter.Next() {
+		iter = db.Iterator(nil, []byte("5"))
+		defer iter.Close()
+		for ; iter.Valid(); iter.Next() {
 			assert.EqualValues(t, strconv.Itoa(i), string(iter.Key()))
 			assert.EqualValues(t, strconv.Itoa(i), string(iter.Value()))
 			i++
@@ -256,7 +263,9 @@ func TestReverseIter(t *testing.T) {
 
 		// test reverse iteration 5 <- 2
 		i := 5
-		for iter := db.Iterator([]byte("5"), []byte("2")); iter.Valid(); iter.Next() {
+		iter := db.Iterator([]byte("5"), []byte("2"))
+		defer iter.Close()
+		for ; iter.Valid(); iter.Next() {
 			assert.EqualValues(t, strconv.Itoa(i), string(iter.Key()))
 			assert.EqualValues(t, strconv.Itoa(i), string(iter.Value()))
 			i--
@@ -266,7 +275,9 @@ func TestReverseIter(t *testing.T) {
 		// nil sames with []byte("0")
 		// test reverse iteration 5 -> 0
 		i = 5
-		for iter := db.Iterator([]byte("5"), nil); iter.Valid(); iter.Next() {
+		iter = db.Iterator([]byte("5"), nil)
+		defer iter.Close()
+		for ; iter.Valid(); iter.Next() {
 			assert.EqualValues(t, strconv.Itoa(i), string(iter.Key()))
 			assert.EqualValues(t, strconv.Itoa(i), string(iter.Value()))
 			i--
