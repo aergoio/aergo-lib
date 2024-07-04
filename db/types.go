@@ -48,7 +48,7 @@ type DB interface {
 
 // Transaction is used to batch multiple operations
 type Transaction interface {
-	//	Get(key []byte) []byte
+	Get(key []byte) []byte
 	Set(key, value []byte)
 	Delete(key []byte)
 	Commit()

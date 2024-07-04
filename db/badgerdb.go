@@ -296,6 +296,22 @@ func (transaction *badgerTransaction) Delete(key []byte) {
 	transaction.delCount++
 }
 
+func (transaction *badgerTransaction) Get(key []byte) []byte {
+	key = convNilToBytes(key)
+
+	item, err := transaction.tx.Get(key)
+	if err != nil {
+		return []byte{}
+	}
+
+	value, err := item.ValueCopy(nil)
+	if err != nil {
+		return []byte{}
+	}
+
+	return value
+}
+
 func (transaction *badgerTransaction) Commit() {
 	writeStartT := time.Now()
 	err := transaction.tx.Commit()

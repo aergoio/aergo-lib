@@ -214,14 +214,14 @@ func (db *deldeldb) processDelete(key []byte, getFunc func([]byte) []byte, setFu
 }
 
 //commonGet handles the common logic for getting a key-value pair
-func (db *deldeldb) commonGet(key []byte) []byte {
+func (db *deldeldb) commonGet(key []byte, getFunc func([]byte) []byte) []byte {
 	db.lock.Lock()
 	defer db.lock.Unlock()
 
 	key = convNilToBytes(key)
 
 	// retrieve the value of the key from the underlying database
-	value := db.db.Get(key)
+	value := getFunc(key)
 
 	// remove the reference counter
 	if len(value) > 0 {
@@ -239,7 +239,7 @@ func (db *deldeldb) Delete(key []byte) {
 }
 
 func (db *deldeldb) Get(key []byte) []byte {
-	return db.commonGet(key)
+	return db.commonGet(key, db.db.Get)
 }
 
 func (db *deldeldb) Exist(key []byte) bool {
@@ -341,6 +341,13 @@ func (transaction *deldelTransaction) Delete(key []byte) {
 	transaction.db.commonDelete(key, false)
 }
 
+func (transaction *deldelTransaction) Get(key []byte) []byte {
+	transaction.txLock.Lock()
+	defer transaction.txLock.Unlock()
+
+	return transaction.db.commonGet(key, transaction.tx.Get)
+}
+
 func (transaction *deldelTransaction) Commit() {
 	transaction.txLock.Lock()
 	defer transaction.txLock.Unlock()
@@ -368,6 +375,10 @@ func (transaction *deldelTransaction) Commit() {
 func (transaction *deldelTransaction) Discard() {
 	transaction.txLock.Lock()
 	defer transaction.txLock.Unlock()
+
+	if transaction.isDiscarded {
+		return
+	}
 
 	// if the transaction was not committed, then discard the last list of deletions
 	if !transaction.isCommitted {
@@ -398,7 +409,7 @@ func (bulk *deldelBulk) Set(key, value []byte) {
 	bulk.txLock.Lock()
 	defer bulk.txLock.Unlock()
 
-	bulk.db.commonSet(key, value, false, bulk.db.Get, bulk.bulk.Set)
+	bulk.db.commonSet(key, value, false, bulk.db.db.Get, bulk.bulk.Set)
 }
 
 func (bulk *deldelBulk) Delete(key []byte) {

@@ -193,6 +193,22 @@ func (transaction *memoryTransaction) Delete(key []byte) {
 	transaction.opList.PushBack(&txOp{false, key, nil})
 }
 
+func (transaction *memoryTransaction) Get(key []byte) []byte {
+	transaction.txLock.Lock()
+	defer transaction.txLock.Unlock()
+
+	// first check if the key is present on the tx
+	for e := transaction.opList.Front(); e != nil; e = e.Next() {
+		op := e.Value.(*txOp)
+		if bytes.Equal(op.key, key) {
+			return op.value
+		}
+	}
+
+	// if the key is not present on the tx, return the value from the db
+	return transaction.db.Get(key)
+}
+
 func (transaction *memoryTransaction) Commit() {
 	transaction.txLock.Lock()
 	defer transaction.txLock.Unlock()

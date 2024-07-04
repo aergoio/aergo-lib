@@ -170,6 +170,9 @@ func TestTransactionCommitTwice(t *testing.T) {
 func TestBulk(t *testing.T) {
 
 	for key := range dbImpls {
+		// print the db implementation name
+		fmt.Println(key)
+
 		dir, db := createTmpDB(key)
 
 		// create a new Bulk instance

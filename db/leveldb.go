@@ -128,11 +128,9 @@ type levelTransaction struct {
 	isCommitted  bool
 }
 
-/*
 func (transaction *levelTransaction) Get(key []byte) []byte {
-	panic(fmt.Sprintf("DO not support"))
+	panic(fmt.Sprintf("not supported"))
 }
-*/
 
 func (transaction *levelTransaction) Set(key, value []byte) {
 	transaction.tx.Put(key, value)
