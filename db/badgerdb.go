@@ -270,11 +270,17 @@ type badgerTransaction struct {
 }
 
 func (transaction *badgerTransaction) Set(key, value []byte) {
-	// TODO Updating trie nodes may require many updates but ErrTxnTooBig is not handled
 	key = convNilToBytes(key)
 	value = convNilToBytes(value)
 
 	err := transaction.tx.Set(key, value)
+
+	// if it exceeds the max size, commit this transaction and start a new one
+	if err == badger.ErrTxnTooBig {
+		transaction.Commit()
+		transaction.tx = transaction.db.db.NewTransaction(true)
+		err = transaction.tx.Set(key, value)
+	}
 	if err != nil {
 		panic(fmt.Sprintf("Database Error: %v", err))
 	}
@@ -285,10 +291,16 @@ func (transaction *badgerTransaction) Set(key, value []byte) {
 }
 
 func (transaction *badgerTransaction) Delete(key []byte) {
-	// TODO Reverting trie may require many updates but ErrTxnTooBig is not handled
 	key = convNilToBytes(key)
 
 	err := transaction.tx.Delete(key)
+
+	// if it exceeds the max size, commit this transaction and start a new one
+	if err == badger.ErrTxnTooBig {
+		transaction.Commit()
+		transaction.tx = transaction.db.db.NewTransaction(true)
+		err = transaction.tx.Delete(key)
+	}
 	if err != nil {
 		panic(fmt.Sprintf("Database Error: %v", err))
 	}
@@ -351,7 +363,6 @@ type badgerBulk struct {
 }
 
 func (bulk *badgerBulk) Set(key, value []byte) {
-	// TODO Updating trie nodes may require many updates but ErrTxnTooBig is not handled
 	key = convNilToBytes(key)
 	value = convNilToBytes(value)
 
@@ -366,7 +377,6 @@ func (bulk *badgerBulk) Set(key, value []byte) {
 }
 
 func (bulk *badgerBulk) Delete(key []byte) {
-	// TODO Reverting trie may require many updates but ErrTxnTooBig is not handled
 	key = convNilToBytes(key)
 
 	err := bulk.bulk.Delete(key)
