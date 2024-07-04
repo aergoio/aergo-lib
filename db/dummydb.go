@@ -48,6 +48,10 @@ func newDummyDB(dir string) (DB, error) {
 		dir: filePath,
 	}
 
+	if len(db) == 0 {
+		database.add_version()
+	}
+
 	return database, nil
 }
 

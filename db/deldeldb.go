@@ -55,6 +55,10 @@ func newDelayedDeletionDB(dir string) (DB, error) {
 		deletions: deletions,
 	}
 
+	if len(database.deletions) == 0 {
+		database.add_version()
+	}
+
 	return database, nil
 }
 
@@ -273,6 +277,7 @@ func (db *deldeldb) IoCtl(ioCtlType string) {
 		db.add_version()
 	case "reset-deletions":
 		db.deletions = make([]map[string]bool, 0)
+		db.add_version()
 	case "save":
 		db.save()
 	}
