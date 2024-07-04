@@ -139,14 +139,14 @@ func (db *dummydb) get(key []byte) []byte {
 
 func (db *dummydb) Set(key, value []byte) {
 	db.lock.Lock()
-	db.add_version()
+	//db.add_version()
 	db.set(key, value)
 	db.lock.Unlock()
 }
 
 func (db *dummydb) Delete(key []byte) {
 	db.lock.Lock()
-	db.add_version()
+	//db.add_version()
 	db.delete(key)
 	db.lock.Unlock()
 }
@@ -197,7 +197,10 @@ func (db *dummydb) IoCtl(ioCtlType string) {
 	db.lock.Lock()
 	defer db.lock.Unlock()
 
-	if ioCtlType == "save" {
+	switch ioCtlType {
+	case "add-version":
+		db.add_version()
+	case "save":
 		db.save()
 	}
 }
@@ -268,7 +271,7 @@ func (transaction *dummyTransaction) Commit() {
 	db.lock.Lock()
 	defer db.lock.Unlock()
 
-	db.add_version()
+	//db.add_version()
 
 	for e := transaction.opList.Front(); e != nil; e = e.Next() {
 		op := e.Value.(*txOp)
@@ -335,7 +338,7 @@ func (bulk *dummyBulk) Flush() {
 	db.lock.Lock()
 	defer db.lock.Unlock()
 
-	db.add_version()
+	//db.add_version()
 
 	for e := bulk.opList.Front(); e != nil; e = e.Next() {
 		op := e.Value.(*txOp)

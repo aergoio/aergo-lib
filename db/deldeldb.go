@@ -99,7 +99,7 @@ func (db *deldeldb) Path() string {
 }
 
 // add a new group of deletions
-func (db *deldeldb) add_transaction() {
+func (db *deldeldb) add_version() {
 	db.deletions = append(db.deletions, make(map[string]bool))
 }
 
@@ -109,7 +109,7 @@ func (db *deldeldb) commonSet(key, value []byte, autoCommit bool, getFunc func([
 	defer db.lock.Unlock()
 
 	if autoCommit {
-		db.add_transaction()
+		//db.add_version()
 	}
 
 	key = convNilToBytes(key)
@@ -154,7 +154,7 @@ func (db *deldeldb) commonDelete(key []byte, autoCommit bool) {
 	key = convNilToBytes(key)
 
 	if autoCommit {
-		db.add_transaction()
+		//db.add_version()
 	}
 
 	db.queueDelete(key)
@@ -268,9 +268,12 @@ func (db *deldeldb) IoCtl(ioCtlType string) {
 	db.lock.Lock()
 	defer db.lock.Unlock()
 
-	if ioCtlType == "reset-deletions" {
+	switch ioCtlType {
+	case "add-version":
+		db.add_version()
+	case "reset-deletions":
 		db.deletions = make([]map[string]bool, 0)
-	} else if ioCtlType == "save" {
+	case "save":
 		db.save()
 	}
 }
@@ -279,7 +282,7 @@ func (db *deldeldb) NewTx() Transaction {
 	db.lock.Lock()
 	defer db.lock.Unlock()
 
-	db.add_transaction()
+	//db.add_version()
 
 	// start a new transaction on the underlying database
 	// and return a new transaction that wraps it
@@ -295,7 +298,7 @@ func (db *deldeldb) NewBulk() Bulk {
 	db.lock.Lock()
 	defer db.lock.Unlock()
 
-	db.add_transaction()
+	//db.add_version()
 
 	// start a new bulk on the underlying database
 	// and return a new bulk that wraps it
