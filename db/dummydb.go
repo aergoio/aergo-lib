@@ -212,20 +212,20 @@ func (db *dummydb) IoCtl(ioCtlType string) {
 func (db *dummydb) NewTx() Transaction {
 
 	return &dummyTransaction{
-		db:        db,
-		opList:    list.New(),
+		db:          db,
+		opList:      list.New(),
 		isDiscarded: false,
-		isCommitted:  false,
+		isCommitted: false,
 	}
 }
 
 func (db *dummydb) NewBulk() Bulk {
 
 	return &dummyBulk{
-		db:        db,
-		opList:    list.New(),
+		db:          db,
+		opList:      list.New(),
 		isDiscarded: false,
-		isCommitted:  false,
+		isCommitted: false,
 	}
 }
 
@@ -234,11 +234,11 @@ func (db *dummydb) NewBulk() Bulk {
 //=========================================================
 
 type dummyTransaction struct {
-	txLock    sync.Mutex
-	db        *dummydb
-	opList    *list.List
+	txLock      sync.Mutex
+	db          *dummydb
+	opList      *list.List
 	isDiscarded bool
-	isCommitted  bool
+	isCommitted bool
 }
 
 func (transaction *dummyTransaction) Set(key, value []byte) {
@@ -317,11 +317,11 @@ func (transaction *dummyTransaction) Discard() {
 //=========================================================
 
 type dummyBulk struct {
-	txLock    sync.Mutex
-	db        *dummydb
-	opList    *list.List
+	txLock      sync.Mutex
+	db          *dummydb
+	opList      *list.List
 	isDiscarded bool
-	isCommitted  bool
+	isCommitted bool
 }
 
 func (bulk *dummyBulk) Set(key, value []byte) {

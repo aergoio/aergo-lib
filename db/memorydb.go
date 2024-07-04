@@ -139,20 +139,20 @@ func (db *memorydb) IoCtl(ioCtlType string) {
 func (db *memorydb) NewTx() Transaction {
 
 	return &memoryTransaction{
-		db:        db,
-		opList:    list.New(),
+		db:          db,
+		opList:      list.New(),
 		isDiscarded: false,
-		isCommitted:  false,
+		isCommitted: false,
 	}
 }
 
 func (db *memorydb) NewBulk() Bulk {
 
 	return &memoryBulk{
-		db:        db,
-		opList:    list.New(),
+		db:          db,
+		opList:      list.New(),
 		isDiscarded: false,
-		isCommitted:  false,
+		isCommitted: false,
 	}
 }
 
@@ -161,11 +161,11 @@ func (db *memorydb) NewBulk() Bulk {
 //=========================================================
 
 type memoryTransaction struct {
-	txLock    sync.Mutex
-	db        *memorydb
-	opList    *list.List
+	txLock      sync.Mutex
+	db          *memorydb
+	opList      *list.List
 	isDiscarded bool
-	isCommitted  bool
+	isCommitted bool
 }
 
 type txOp struct {
@@ -248,11 +248,11 @@ func (transaction *memoryTransaction) Discard() {
 //=========================================================
 
 type memoryBulk struct {
-	txLock    sync.Mutex
-	db        *memorydb
-	opList    *list.List
+	txLock      sync.Mutex
+	db          *memorydb
+	opList      *list.List
 	isDiscarded bool
-	isCommitted  bool
+	isCommitted bool
 }
 
 func (bulk *memoryBulk) Set(key, value []byte) {

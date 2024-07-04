@@ -122,10 +122,10 @@ func (db *levelDB) NewBulk() Bulk {
 //=========================================================
 
 type levelTransaction struct {
-	db        *levelDB
-	tx        *leveldb.Batch
+	db          *levelDB
+	tx          *leveldb.Batch
 	isDiscarded bool
-	isCommitted  bool
+	isCommitted bool
 }
 
 func (transaction *levelTransaction) Get(key []byte) []byte {
@@ -162,10 +162,10 @@ func (transaction *levelTransaction) Discard() {
 //=========================================================
 
 type levelBulk struct {
-	db        *levelDB
-	tx        *leveldb.Batch
+	db          *levelDB
+	tx          *leveldb.Batch
 	isDiscarded bool
-	isCommitted  bool
+	isCommitted bool
 }
 
 func (bulk *levelBulk) Set(key, value []byte) {

@@ -292,10 +292,10 @@ func (db *deldeldb) NewTx() Transaction {
 	// start a new transaction on the underlying database
 	// and return a new transaction that wraps it
 	return &deldelTransaction{
-		db:        db,
-		tx:        db.db.NewTx(),
+		db:          db,
+		tx:          db.db.NewTx(),
 		isDiscarded: false,
-		isCommitted:  false,
+		isCommitted: false,
 	}
 }
 
@@ -308,10 +308,10 @@ func (db *deldeldb) NewBulk() Bulk {
 	// start a new bulk on the underlying database
 	// and return a new bulk that wraps it
 	return &deldelBulk{
-		db:        db,
-		bulk:      db.db.NewBulk(),
+		db:          db,
+		bulk:        db.db.NewBulk(),
 		isDiscarded: false,
-		isCommitted:  false,
+		isCommitted: false,
 	}
 }
 
@@ -320,11 +320,11 @@ func (db *deldeldb) NewBulk() Bulk {
 //=========================================================
 
 type deldelTransaction struct {
-	txLock    sync.Mutex
-	db        *deldeldb
-	tx        Transaction
+	txLock      sync.Mutex
+	db          *deldeldb
+	tx          Transaction
 	isDiscarded bool
-	isCommitted  bool
+	isCommitted bool
 }
 
 func (transaction *deldelTransaction) Set(key, value []byte) {
@@ -398,11 +398,11 @@ func (transaction *deldelTransaction) Discard() {
 //=========================================================
 
 type deldelBulk struct {
-	txLock    sync.Mutex
-	db        *deldeldb
-	bulk      Bulk
+	txLock      sync.Mutex
+	db          *deldeldb
+	bulk        Bulk
 	isDiscarded bool
-	isCommitted  bool
+	isCommitted bool
 }
 
 func (bulk *deldelBulk) Set(key, value []byte) {
