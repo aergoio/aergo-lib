@@ -11,6 +11,7 @@ import (
 	"os"
 	"strconv"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -175,6 +176,9 @@ func TestBulk(t *testing.T) {
 
 		dir, db := createTmpDB(key)
 
+		// let's time the bulk set
+		start := time.Now()
+
 		// create a new Bulk instance
 		bulk := db.NewBulk()
 
@@ -185,6 +189,9 @@ func TestBulk(t *testing.T) {
 		}
 
 		bulk.Flush()
+
+		end := time.Now()
+		fmt.Println("time to set 1000000 values: ", end.Sub(start))
 
 		// after commit, the value visible from the db
 
