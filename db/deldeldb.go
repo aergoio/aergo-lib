@@ -305,11 +305,11 @@ func (db *deldeldb) NewBulk() Bulk {
 
 	//db.add_version()
 
-	// start a new bulk on the underlying database
+	// start a new transaction on the underlying database
 	// and return a new bulk that wraps it
 	return &deldelBulk{
 		db:          db,
-		bulk:        db.db.NewBulk(),
+		tx:          db.db.NewTx(),
 		isDiscarded: false,
 		isCommitted: false,
 	}
@@ -400,7 +400,7 @@ func (transaction *deldelTransaction) Discard() {
 type deldelBulk struct {
 	txLock      sync.Mutex
 	db          *deldeldb
-	bulk        Bulk
+	tx          Transaction
 	isDiscarded bool
 	isCommitted bool
 }
@@ -409,7 +409,7 @@ func (bulk *deldelBulk) Set(key, value []byte) {
 	bulk.txLock.Lock()
 	defer bulk.txLock.Unlock()
 
-	bulk.db.commonSet(key, value, false, bulk.db.db.Get, bulk.bulk.Set)
+	bulk.db.commonSet(key, value, false, bulk.tx.Get, bulk.tx.Set)
 }
 
 func (bulk *deldelBulk) Delete(key []byte) {
@@ -435,10 +435,10 @@ func (bulk *deldelBulk) Flush() {
 	defer db.lock.Unlock()
 
 	// process the delayed deletions
-	db.processDeletions(bulk.db.Get, bulk.bulk.Set, bulk.bulk.Delete)
+	db.processDeletions(bulk.tx.Get, bulk.tx.Set, bulk.tx.Delete)
 
 	// commit the transaction on the underlying database
-	bulk.bulk.Flush()
+	bulk.tx.Commit()
 
 	bulk.isCommitted = true
 }
@@ -455,7 +455,7 @@ func (bulk *deldelBulk) Discard() {
 	}
 
 	// discard the transaction on the underlying database
-	bulk.bulk.Discard()
+	bulk.tx.Discard()
 
 	bulk.isDiscarded = true
 }
