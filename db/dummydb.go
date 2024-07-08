@@ -202,10 +202,12 @@ func (db *dummydb) IoCtl(ioCtlType string) {
 	defer db.lock.Unlock()
 
 	switch ioCtlType {
-	case "add-version":
+	case "new-version":
 		db.add_version()
 	case "save":
 		db.save()
+	default:
+		panic("unknown ioctl type: " + ioCtlType)
 	}
 }
 
