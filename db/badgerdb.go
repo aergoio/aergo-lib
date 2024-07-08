@@ -434,12 +434,16 @@ func (db *badgerDB) Iterator(start, end []byte) Iterator {
 	}
 
 	opt := badger.DefaultIteratorOptions
-	opt.PrefetchValues = false
+	//opt.PrefetchValues = false
 	opt.Reverse = reverse
 
 	badgerIter := badgerTx.NewIterator(opt)
 
-	badgerIter.Seek(start)
+	if start != nil {
+		badgerIter.Seek(start)
+	} else {
+		badgerIter.Rewind()
+	}
 
 	retIter := &badgerIterator{
 		start:   start,
@@ -465,12 +469,13 @@ func (iter *badgerIterator) Valid() bool {
 	}
 
 	if iter.end != nil {
+		key := iter.iter.Item().Key()
 		if iter.reverse == false {
-			if bytes.Compare(iter.end, iter.iter.Item().Key()) <= 0 {
+			if bytes.Compare(iter.end, key) <= 0 {
 				return false
 			}
 		} else {
-			if bytes.Compare(iter.iter.Item().Key(), iter.end) <= 0 {
+			if bytes.Compare(key, iter.end) <= 0 {
 				return false
 			}
 		}
