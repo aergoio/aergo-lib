@@ -90,14 +90,16 @@ func (db *dummydb) add_version() {
 	}
 	db.versions_since_save++
 	// add a new version to the database
-	db.db = append([]map[string][]byte{make(map[string][]byte)}, db.db...)
+	db.db = append(db.db, make(map[string][]byte))
 	// check if the database has more than 512 versions. if it does,
-	// remove the version just before the oldest one.
-	// eg: keeps 0-510, removes 511, keeps 512
-	// this is used to keep the genesis block in the database
-	if len(db.db) > 512 {
-		oldest := db.db[len(db.db)-1]
-		db.db = append(db.db[:len(db.db)-2], oldest)
+	// remove the version at position 1, keeping the genesis block at position 0
+	if len(db.db) == 513 {
+		// Remove the block at position 1
+		db.db = append(db.db[:1], db.db[2:]...)
+	} else if len(db.db) > 513 {
+		// Remove excess blocks, keeping only the first (genesis) and the last 511 blocks
+		start := len(db.db) - 511
+		db.db = append(db.db[:1], db.db[start:]...)
 	}
 }
 
@@ -108,7 +110,8 @@ func (db *dummydb) set(key, value []byte) {
 	value = convNilToBytes(value)
 
 	// add the key-value pair to the last version
-	db.db[0][string(key)] = value
+	version := len(db.db) - 1
+	db.db[version][string(key)] = value
 
 }
 
@@ -129,9 +132,10 @@ func (db *dummydb) get(key []byte) []byte {
 
 	key = convNilToBytes(key)
 
-	// iterate over the database from the latest version to the oldest
+	// iterate over the database from the newest version to the oldest
 	// and return the value of the key if it exists
-	for _, kv := range db.db {
+	for i := len(db.db) - 1; i >= 0; i-- {
+		kv := db.db[i]
 		if value := kv[string(key)]; value != nil {
 			return value
 		}
