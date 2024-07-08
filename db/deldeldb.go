@@ -11,6 +11,7 @@ import (
 	"os"
 	"path"
 	"sync"
+	"strconv"
 )
 
 // This function is always called first
@@ -31,19 +32,23 @@ func newDelayedDeletionDB(dir string) (DB, error) {
 		return nil, err
 	}
 
-	// load the list of deletions from the file
-	filePath := path.Join(dir, "deletions")
-	file, err := os.Open(filePath)
-	if err == nil {
-		decoder := gob.NewDecoder(file)
-		err = decoder.Decode(&deletions)
-		if err != nil {
-			return nil, err
+	// check if the sub-folder exists
+	subdir := path.Join(dir, "delayed-deletion")
+	if _, err := os.Stat(subdir); err == nil {
+		// load the list of deletions from the file
+		filePath := path.Join(subdir, "deletions")
+		file, err := os.Open(filePath)
+		if err == nil {
+			decoder := gob.NewDecoder(file)
+			err = decoder.Decode(&deletions)
+			if err != nil {
+				return nil, err
+			}
 		}
+		file.Close()
+		// delete the file
+		os.Remove(filePath)
 	}
-	file.Close()
-	// delete the file
-	os.Remove(filePath)
 
 	if deletions == nil {
 		deletions = make([]map[string]bool, 0)
@@ -51,7 +56,7 @@ func newDelayedDeletionDB(dir string) (DB, error) {
 
 	database := &deldeldb{
 		db:        db,
-		dir:       filePath,
+		dir:       dir,
 		deletions: deletions,
 	}
 
@@ -251,14 +256,26 @@ func (db *deldeldb) Exist(key []byte) bool {
 
 func (db *deldeldb) save() {
 
+	subdir := path.Join(db.dir, "delayed-deletion")
+
+	// create the folder if it does not exist
+	err := os.MkdirAll(subdir, 0755)
+	if err != nil && !os.IsExist(err) {
+		logger.Error().Msg("deldeldb.save - failed to create folder: " + err.Error())
+		return
+	}
+
 	// save the list of deletions to a file
-	filePath := path.Join(db.dir, "deletions")
+	filePath := path.Join(subdir, "deletions")
 	file, err := os.OpenFile(filePath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0666)
 	if err == nil {
 		encoder := gob.NewEncoder(file)
-		encoder.Encode(db.deletions)
+		err = encoder.Encode(db.deletions)
 	}
 	file.Close()
+	if err != nil {
+		logger.Error().Msg("deldeldb.save - failed to save deletions: " + err.Error())
+	}
 
 }
 
