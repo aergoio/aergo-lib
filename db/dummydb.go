@@ -11,7 +11,11 @@ import (
 	"encoding/gob"
 	"os"
 	"path"
+	"path/filepath"
 	"sort"
+	"strings"
+	"strconv"
+	"fmt"
 	"sync"
 )
 
@@ -26,26 +30,67 @@ func init() {
 func newDummyDB(dir string) (DB, error) {
 	var db []map[string][]byte
 
-	filePath := path.Join(dir, "database")
-
-	file, err := os.Open(filePath)
-	if err == nil {
-		decoder := gob.NewDecoder(file) //
-		err = decoder.Decode(&db)
-
-		if err != nil {
-			return nil, err
+	// list all the db files
+	files, err := filepath.Glob(dir + "/db-*")
+	if err != nil {
+		logger.Error().Msg("dummydb - error getting files: " + err.Error())
+		panic(err)
+	}
+	// if there is at least one file
+	if len(files) > 0 {
+		// sort files numerically
+		sort.Slice(files, func(i, j int) bool {
+			numI, _ := strconv.ParseUint(strings.TrimPrefix(path.Base(files[i]), "db-"), 10, 64)
+			numJ, _ := strconv.ParseUint(strings.TrimPrefix(path.Base(files[j]), "db-"), 10, 64)
+			return numI < numJ
+		})
+		// try to read the last file. if it fails, read the next one
+		for pos := len(files) - 1; pos >= 0; pos-- {
+			file, err := os.Open(files[pos])
+			if err == nil {
+				decoder := gob.NewDecoder(file)
+				err = decoder.Decode(&db)
+			}
+			file.Close()
+			// if there is any error
+			if err != nil {
+				// delete this file
+				os.Remove(files[pos])
+				// remove the file from the slice
+				files = files[:pos]
+				// try to read the next file
+				continue
+			}
+			// if there is no error, break the loop
+			break
+		}
+		// if there are more than 3 files, remove the oldest ones
+		for len(files) > 3 {
+			os.Remove(files[0])
+			files = files[1:]
 		}
 	}
-	file.Close()
+
+	// get the version number from the last file
+	var version uint64
+	if len(files) > 0 {
+		fileName := path.Base(files[len(files)-1])
+		version, err = strconv.ParseUint(strings.TrimPrefix(fileName, "db-"), 10, 64)
+		if err != nil {
+			logger.Error().Msg("dummydb - error getting version: " + err.Error())
+			panic(err)
+		}
+	}
 
 	if db == nil {
 		db = make([]map[string][]byte, 0)
 	}
 
 	database := &dummydb{
-		db:  db,
-		dir: filePath,
+		db:      db,
+		dir:     dir,
+		files:   files,
+		version: version,
 	}
 
 	if len(db) == 0 {
@@ -68,10 +113,11 @@ var _ DB = (*dummydb)(nil)
 // the last element in the slice is the oldest version
 
 type dummydb struct {
-	lock sync.Mutex
-	db   []map[string][]byte
-	dir  string
-	versions_since_save int
+	lock    sync.Mutex
+	db      []map[string][]byte
+	dir     string
+	files   []string
+	version uint64
 }
 
 func (db *dummydb) Type() string {
@@ -84,11 +130,12 @@ func (db *dummydb) Path() string {
 
 // add a new version to the database
 func (db *dummydb) add_version() {
+	logger.Debug().Msg("dummydb add_version")
 	// save the database to a file every 256 versions
-	if db.versions_since_save >= 256 {
+	if db.version%256 == 0 && db.version != 0 {
 		db.save()
 	}
-	db.versions_since_save++
+	db.version++
 	// add a new version to the database
 	db.db = append(db.db, make(map[string][]byte))
 	// check if the database has more than 512 versions. if it does,
@@ -184,14 +231,37 @@ func (db *dummydb) Exist(key []byte) bool {
 
 func (db *dummydb) save() {
 
-	file, err := os.OpenFile(db.dir, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0666)
+	// use the version number in the file name
+	fileName := fmt.Sprintf("%s/db-%d", db.dir, db.version)
+	logger.Info().Msg("dummydb - saving to file: " + fileName)
+
+	// save the database to a file
+	file, err := os.OpenFile(fileName, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0666)
 	if err == nil {
 		encoder := gob.NewEncoder(file)
-		encoder.Encode(db.db)
+		err = encoder.Encode(db.db)
+		file.Close()
 	}
-	file.Close()
+	if err != nil {
+		logger.Error().Msg("dummydb - error saving to file: " + err.Error())
+		return
+	}
 
-	db.versions_since_save = 0
+	// check if it is already on the list
+	for _, file := range db.files {
+		if file == fileName {
+			return
+		}
+	}
+
+	// add it to the list of db files
+	db.files = append(db.files, fileName)
+
+	// keep only the last 3 files
+	if len(db.files) > 3 {
+		os.Remove(db.files[0])
+		db.files = db.files[1:]
+	}
 
 }
 
