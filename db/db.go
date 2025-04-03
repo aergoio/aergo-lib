@@ -6,49 +6,56 @@
 /*
 Package db is an wrapper of key-value database implementations. Currently, this supports badgerdb (https://github.com/dgraph-io/badger).
 
-Basic Usage
+# Basic Usage
 
 You can create database using a newdb func like this
- database := NewDB(BadgerImpl, "./test")
+
+	 q
+		database := NewDB(BadgerImpl, "./test")
 
 A first argument is a backend db type to use, and a second is a root directory to store db files.
 After creating db, you can write, read or delete single key-value using funcs in DB interface.
- // write data
- database.Set([]byte("key"), []byte("val"))
 
- // read data
- read := Get([]byte("key"))
+	// write data
+	database.Set([]byte("key"), []byte("val"))
 
- // delete data
- database.Delete([]byte("key"))
+	// read data
+	read := Get([]byte("key"))
 
-Transaction
+	// delete data
+	database.Delete([]byte("key"))
+
+# Transaction
 
 A Transaction is a bulk set of operations to ensure atomic success or fail.
- // create a new transaction
- tx := database.NewTX(true)
 
- // reserve writing
- tx.Set([]byte("keyA"), []byte("valA"))
- tx.Set([]byte("keyB"), []byte("valB"))
+	// create a new transaction
+	tx := database.NewTX(true)
 
- // Get will return a value reserved to write in this transaction
- mustBeValA := tx.Get([]byte("keyA"))
+	// reserve writing
+	tx.Set([]byte("keyA"), []byte("valA"))
+	tx.Set([]byte("keyB"), []byte("valB"))
 
- // Perform writing
- tx.Commit()
+	// Get will return a value reserved to write in this transaction
+	mustBeValA := tx.Get([]byte("keyA"))
+
+	// Perform writing
+	tx.Commit()
+
 If you want to cancel and discard operations in tx, then you must call Discard() func to prevent a memory leack
- // If you create a tx, but do not commit, than you have to call this
- tx.Discard()
 
-Iterator
+	// If you create a tx, but do not commit, than you have to call this
+	tx.Discard()
+
+# Iterator
 
 An iteractor provides a way to get all keys sequentially.
- // create an iterator that covers all range
- for iter := database.Iterator(nil, nil); iter.Valid(); iter.Next() {
-	 // print each key-value pair
-	 fmt.Printf("%s = %s", string(iter.Key()), string(iter.Value()))
- }
+
+	 // create an iterator that covers all range
+	 for iter := database.Iterator(nil, nil); iter.Valid(); iter.Next() {
+		 // print each key-value pair
+		 fmt.Printf("%s = %s", string(iter.Key()), string(iter.Value()))
+	 }
 
 You can find more detail usages at a db_test.go file
 */
@@ -61,7 +68,7 @@ import (
 )
 
 var dbImpls = map[ImplType]dbConstructor{}
-var logger *extendedLog
+var logger *badgerExtendedLog
 
 func registorDBConstructor(dbimpl ImplType, constructor dbConstructor) {
 	dbImpls[dbimpl] = constructor
@@ -69,7 +76,8 @@ func registorDBConstructor(dbimpl ImplType, constructor dbConstructor) {
 
 // NewDB creates new database or load existing database in the directory
 func NewDB(dbimpltype ImplType, dir string) DB {
-	logger = &extendedLog{Logger: log.NewLogger("db")}
+	// The default wrapper need 3 frames and badger wrapper need 1 frame to show actual stack trace.
+	logger = &badgerExtendedLog{Logger: log.NewLogger("db").WithSkipFrameCount(4)}
 	db, err := dbImpls[dbimpltype](dir)
 
 	if err != nil {
