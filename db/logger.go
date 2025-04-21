@@ -14,7 +14,7 @@ func newBadgerExtendedLog(logger *log.Logger) *badgerExtendedLog {
 		panic("base logger of raft is nil")
 	}
 
-	return &badgerExtendedLog{logger.WithSkipFrameCount(3)}
+	return &badgerExtendedLog{logger.WithSkipFrameCount(4)}
 }
 
 var _ badger.Logger = (*badgerExtendedLog)(nil)
@@ -34,4 +34,8 @@ func (l *badgerExtendedLog) Infof(f string, v ...interface{}) {
 
 func (l *badgerExtendedLog) Debugf(f string, v ...interface{}) {
 	l.Debug().Msgf(f, v...)
+}
+
+func (l *badgerExtendedLog) Tracef(f string, v ...interface{}) {
+	l.Trace().Msgf(f, v...)
 }

@@ -141,7 +141,7 @@ func TestTransactionDelete(t *testing.T) {
 
 		tx.Commit()
 
-		// after commit, chekc the value from the db
+		// after commit, check the value from the db
 		assert.Equal(t, "", string(db.Get([]byte(tmpDbTestKey1))), db.Type())
 
 		db.Close()
@@ -151,6 +151,9 @@ func TestTransactionDelete(t *testing.T) {
 
 func TestTransactionCommitTwice(t *testing.T) {
 	for key := range dbImpls {
+		// TODO BadgerImpl fails to test since badger/v2 by bug. This bug was patched in v4.3.0 but we cannot update it unless more tests.
+		// see https://github.com/hypermodeinc/badger/pull/2018
+
 		dir, db := createTmpDB(key)
 
 		// create a new writable tx
@@ -160,7 +163,7 @@ func TestTransactionCommitTwice(t *testing.T) {
 		tx.Commit()
 
 		// a second commit will cause panic
-		assert.Panics(t, func() { tx.Commit() })
+		assert.Panics(t, func() { tx.Commit() }, "db impl "+key+" commit twice should panic")
 
 		db.Close()
 		os.RemoveAll(dir)

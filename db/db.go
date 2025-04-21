@@ -69,14 +69,14 @@ import (
 var dbImpls = map[ImplType]dbConstructor{}
 var logger *badgerExtendedLog
 
-func registorDBConstructor(dbimpl ImplType, constructor dbConstructor) {
+func registerDBConstructor(dbimpl ImplType, constructor dbConstructor) {
 	dbImpls[dbimpl] = constructor
 }
 
 // NewDB creates new database or load existing database in the directory
 func NewDB(dbimpltype ImplType, dir string) DB {
 	// The default wrapper need 3 frames and badger wrapper need 1 frame to show actual stack trace.
-	logger = &badgerExtendedLog{Logger: log.NewLogger("db").WithSkipFrameCount(4)}
+	logger = newBadgerExtendedLog(log.NewLogger("db"))
 	db, err := dbImpls[dbimpltype](dir)
 
 	if err != nil {
