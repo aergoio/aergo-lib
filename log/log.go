@@ -67,6 +67,8 @@ var defaultConfFileName = "arglog"
 
 var defaultConfStr = ""
 
+var enableCaller = false
+
 func loadConfigFile() *viper.Viper {
 	// init viper
 	viperConf.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
@@ -154,9 +156,9 @@ func initLog() {
 			baseLogger = baseLogger.Output(out)
 		}
 	}
-
+	enableCaller = viperConf.GetBool("caller")
 	// set a caller print option
-	if viperConf.GetBool("caller") {
+	if enableCaller {
 		baseLogger = baseLogger.With().Caller().Logger()
 	}
 
