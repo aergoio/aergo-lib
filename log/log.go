@@ -9,34 +9,34 @@ Package log is a global and configurable logger pkg, based on zerolog (https://g
 You can congifure this logger using a toml configuration file. Here is an example configuration that has all available fields.
 However fields are optional. Even if you don't set some of them, logger will work well with a default value.
 
- # A default log level for all sub modules
- # must be one of this; debug/info/warn/error/fatal/panic
- level = "info"
+	# A default log level for all sub modules
+	# must be one of this; debug/info/warn/error/fatal/panic
+	level = "info"
 
- # A log output formatter
- # can be chosen among this; console, console_no_color, json
- formatter = "json"
+	# A log output formatter
+	# can be chosen among this; console, console_no_color, json
+	formatter = "json"
 
- # Enabling source file and line printer
- caller = false
+	# Enabling source file and line printer
+	caller = false
 
- # A time stamp field format.
- # e.g. in a time/format.go file
- # ANSIC       = "Mon Jan _2 15:04:05 2006"
- # RFC822      = "02 Jan 06 15:04 MST"
- # RFC1123     = "Mon, 02 Jan 2006 15:04:05 MST"
- # Kitchen     = "3:04PM"
- # Stamp       = "Jan _2 15:04:05"
- timefieldformat = "3:04 PM"
+	# A time stamp field format.
+	# e.g. in a time/format.go file
+	# ANSIC       = "Mon Jan _2 15:04:05 2006"
+	# RFC822      = "02 Jan 06 15:04 MST"
+	# RFC1123     = "Mon, 02 Jan 2006 15:04:05 MST"
+	# Kitchen     = "3:04PM"
+	# Stamp       = "Jan _2 15:04:05"
+	timefieldformat = "3:04 PM"
 
- # If there is a sub module and it has deferent options from defaults,
- # sub modules can be configed using a map struct of toml
- # currently, only setting sub modules's level is allowed
- [sub_module_name]
- level = "error"
+	# If there is a sub module and it has deferent options from defaults,
+	# sub modules can be configed using a map struct of toml
+	# currently, only setting sub modules's level is allowed
+	[sub_module_name]
+	level = "error"
 
- [can_have_multiple_module]
- level = "debug"
+	[can_have_multiple_module]
+	level = "debug"
 
 After creating a log configuration file, you must locate that to a same directory where binary file is.
 Or you can register the config file path at an environment variable 'arglib_logconfig'.
@@ -66,6 +66,8 @@ var confEnvPrefix = "ARGLIB"
 var defaultConfFileName = "arglog"
 
 var defaultConfStr = ""
+
+var enableCaller = false
 
 func loadConfigFile() *viper.Viper {
 	// init viper
@@ -154,25 +156,14 @@ func initLog() {
 			baseLogger = baseLogger.Output(out)
 		}
 	}
-
+	enableCaller = viperConf.GetBool("caller")
 	// set a caller print option
-	if viperConf.GetBool("caller") {
+	if enableCaller {
 		baseLogger = baseLogger.With().Caller().Logger()
 	}
 
 	// set a base log level
-	level := viperConf.GetString("level")
-	var zLevel zerolog.Level
-	if level == "" {
-		zLevel = zerolog.InfoLevel
-	} else {
-		var err error
-		if zLevel, err = zerolog.ParseLevel(level); err != nil {
-			baseLogger.Warn().Err(err).Msg("Fail to parse and set a default log level. set the level as info")
-			zLevel = zerolog.InfoLevel
-		}
-	}
-
+	var zLevel = getLogLevel(viperConf)
 	// create logger by attaching a timestamp and setting a level
 	baseLogger = baseLogger.With().Timestamp().Logger().Level(zLevel)
 	baseLevel = zLevel
@@ -192,13 +183,21 @@ func NewLogger(moduleName string) *Logger {
 		isLogInit = true
 	}
 
+	subViperConf := viperConf.Sub(moduleName)
 	// create sub logger
+	zLevel := getLogLevel(subViperConf)
+	zLogger := createInternalLogger(subViperConf, moduleName, zLevel)
+
+	return &Logger{
+		Logger: &zLogger,
+		name:   moduleName,
+		level:  zLevel,
+	}
+}
+
+func createInternalLogger(subViperConf *viper.Viper, moduleName string, level zerolog.Level) zerolog.Logger {
 	zLogger := baseLogger.With().Str("module", moduleName).Logger()
 
-	// try to load sub config
-	var zLevel zerolog.Level
-	zLevel = baseLevel
-	subViperConf := viperConf.Sub(moduleName)
 	if subViperConf != nil {
 		outputName := subViperConf.GetString("out")
 		if outputName != "" {
@@ -209,24 +208,27 @@ func NewLogger(moduleName string) *Logger {
 			}
 		}
 
-		level := subViperConf.GetString("level")
-		var err error
+	}
 
+	zLogger = zLogger.Level(level)
+	return zLogger
+}
+
+func getLogLevel(conf *viper.Viper) zerolog.Level {
+	// try to load sub config
+	var zLevel = baseLevel
+
+	if conf != nil {
+		var err error
+		level := conf.GetString("level")
 		if level != "" {
 			if zLevel, err = zerolog.ParseLevel(level); err != nil {
 				zLevel = zerolog.InfoLevel
 			}
-
 			// set sub logger's level
-			zLogger = zLogger.Level(zLevel)
 		}
 	}
-
-	return &Logger{
-		Logger: &zLogger,
-		name:   moduleName,
-		level:  zLevel,
-	}
+	return zLevel
 }
 
 var errEmptyName = errors.New("not really error. just placeholder")
@@ -238,7 +240,8 @@ var errEmptyName = errors.New("not really error. just placeholder")
 // Note: There can be argument about thread safe, because Writer of os.File is not
 // guaranteed in thread safe golang runtime, also in stdout and stderr.
 // But it looks practically less dangerous in POSIX compatible system.
-//    https://stackoverflow.com/questions/29981050/concurrent-writing-to-a-file
+//
+//	https://stackoverflow.com/questions/29981050/concurrent-writing-to-a-file
 func getOutput(outName string) (*os.File, error) {
 	switch outName {
 	case "":
@@ -257,7 +260,7 @@ func getOutput(outName string) (*os.File, error) {
 	}
 }
 
-// Default returns a defulat logger. this logger does not have a module name.
+// Default returns a default logger. this logger does not have a module name.
 func Default() *Logger {
 	logInitLock.Lock()
 	defer logInitLock.Unlock()
@@ -286,7 +289,7 @@ func (logger *Logger) Level() string {
 	return logger.level.String()
 }
 
-// Logger keeps configrations, and provides a funcs to print logs.
+// Logger keeps configurations, and provides a functions to print logs.
 type Logger struct {
 	*zerolog.Logger
 	name  string
