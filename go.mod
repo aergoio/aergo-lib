@@ -1,6 +1,6 @@
 module github.com/aergoio/aergo-lib
 
-go 1.12
+go 1.13
 
 require (
 	github.com/dgraph-io/badger/v3 v3.2103.2
@@ -14,7 +14,7 @@ require (
 	github.com/onsi/ginkgo v1.10.3 // indirect
 	github.com/onsi/gomega v1.7.1 // indirect
 	github.com/pelletier/go-toml v1.2.1-0.20180930205832-81a861c69d25 // indirect
-	github.com/rs/zerolog v1.16.1-0.20191111091419-e709c5d91e35
+	github.com/rs/zerolog v1.22.0
 	github.com/spf13/jwalterweatherman v1.1.0 // indirect
 	github.com/spf13/pflag v1.0.5
 	github.com/spf13/viper v1.5.0

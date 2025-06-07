@@ -15,7 +15,7 @@ func SetRelativeLogPathForProject() {
 
 func SetRelativeLogPath(baseDir string) {
 	// customizing CallerMarshalFunc of zerolog
-	zerolog.CallerMarshalFunc = func(pc uintptr, file string, line int) string {
+	zerolog.CallerMarshalFunc = func(file string, line int) string {
 		// find relative path based of project root
 		relPath, err := filepath.Rel(baseDir, file)
 		if err != nil {
