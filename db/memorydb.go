@@ -17,13 +17,13 @@ import (
 
 // This function is always called first
 func init() {
-	dbConstructor := func(dir string) (DB, error) {
-		return newMemoryDB(dir)
+	dbConstructor := func(dir string, opts ...Opt) (DB, error) {
+		return newMemoryDB(dir, opts...)
 	}
 	registerDBConstructor(MemoryImpl, dbConstructor)
 }
 
-func newMemoryDB(dir string) (DB, error) {
+func newMemoryDB(dir string, opt ...Opt) (DB, error) {
 	var db map[string][]byte
 
 	filePath := path.Join(dir, "database")

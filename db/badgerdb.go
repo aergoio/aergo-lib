@@ -8,6 +8,7 @@ package db
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -20,12 +21,17 @@ const (
 	badgerDbGcInterval     = 10 * time.Minute
 	badgerDbGcSize         = 1 << 20 // 1 MB
 	badgerValueLogFileSize = 1 << 26
+	badgerValueThreshold   = 1024
+)
+
+const (
+	OptBadgerValueThreshold = "ValueThreshold"
 )
 
 // This function is always called first
 func init() {
-	dbConstructor := func(dir string) (DB, error) {
-		return newBadgerDB(dir)
+	dbConstructor := func(dir string, opts ...Opt) (DB, error) {
+		return newBadgerDB(dir, opts...)
 	}
 	registerDBConstructor(BadgerImpl, dbConstructor)
 }
@@ -71,7 +77,7 @@ func (db *badgerDB) runBadgerGC() {
 
 // newBadgerDB create a DB instance that uses badger db and implements DB interface.
 // An input parameter, dir, is a root directory to store db files.
-func newBadgerDB(dir string) (DB, error) {
+func newBadgerDB(dir string, opt ...Opt) (DB, error) {
 	// set option file
 	opts := badger.DefaultOptions(dir)
 
@@ -80,7 +86,8 @@ func newBadgerDB(dir string) (DB, error) {
 	// *** BadgerDB v3 no longer supports FileIO option. To fix build, the related lines are commented out. ***
 	// opts.ValueLogLoadingMode = options.FileIO
 	// opts.TableLoadingMode = options.FileIO
-	opts.ValueThreshold = 1024 // store values, whose size is smaller than 1k, to a lsm tree -> to invoke flushing memtable
+	// store values, whose size is smaller than 1k, to a lsm tree -> to invoke flushing memtable
+	opts.ValueThreshold = badgerValueThreshold
 
 	// to reduce size of value log file for low throughtput of cloud; 1GB -> 64 MB
 	// Time to read or write 1GB file in cloud (normal disk, not high provisioned) takes almost 20 seconds for GC
@@ -91,6 +98,20 @@ func newBadgerDB(dir string) (DB, error) {
 	// set aergo-lib logger instead of default badger stderr logger
 	opts.Logger = logger
 
+	// apply user option
+	for _, o := range opt {
+		switch o.Name {
+		case OptBadgerValueThreshold:
+			valueThreshold, ok := o.Value.(int64)
+			if !ok {
+				return nil, errors.New("invalid value type for ValueThreshold, expected int64")
+			}
+			logger.Info().Int64("default", opts.ValueThreshold).Int64("to", valueThreshold).Str("opt", "ValueThreshold").Msg("override badger option")
+			opts = opts.WithValueThreshold(valueThreshold)
+		default:
+
+		}
+	}
 	// open badger db
 	db, err := badger.Open(opts)
 	if err != nil {

@@ -19,7 +19,7 @@ const (
 	MemoryImpl ImplType = "memorydb"
 )
 
-type dbConstructor func(dir string) (DB, error)
+type dbConstructor func(dir string, options ...Opt) (DB, error)
 
 // DB is an general interface to access at storage data
 type DB interface {
