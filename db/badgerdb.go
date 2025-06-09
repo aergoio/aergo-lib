@@ -10,6 +10,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/dgraph-io/badger/v3/options"
+	"os"
+	"strconv"
 	"time"
 
 	"github.com/aergoio/aergo-lib/log"
@@ -37,6 +40,11 @@ func init() {
 }
 
 func (db *badgerDB) runBadgerGC() {
+	if db.noGc {
+		logger.Info().Str("name", db.name).Msg("Skipping Badger GC by configuration")
+		return
+	}
+
 	ticker := time.NewTicker(1 * time.Minute)
 
 	lastGcT := time.Now()
@@ -51,7 +59,7 @@ func (db *badgerDB) runBadgerGC() {
 			if time.Now().Sub(lastGcT) > badgerDbGcInterval || lastDbVlogSize+badgerDbGcSize > currentDbVlogSize {
 				startGcT := time.Now()
 				logger.Debug().Str("name", db.name).Int64("lsmSize", currentDblsmSize).Int64("vlogSize", currentDbVlogSize).Msg("Start to GC at badger")
-				err := db.db.RunValueLogGC(badgerDbDiscardRatio)
+				err := db.db.RunValueLogGC(db.discardRatio)
 				if err != nil {
 					if err == badger.ErrNoRewrite {
 						logger.Debug().Str("name", db.name).Str("msg", err.Error()).Msg("Nothing to GC at badger")
@@ -78,6 +86,24 @@ func (db *badgerDB) runBadgerGC() {
 // newBadgerDB create a DB instance that uses badger db and implements DB interface.
 // An input parameter, dir, is a root directory to store db files.
 func newBadgerDB(dir string, opt ...Opt) (DB, error) {
+	// internal configurations
+	var dbDiscardRatio = badgerDbDiscardRatio
+	var err error
+	if value, exists := os.LookupEnv("BADGERDB_DISCARD_RATIO"); exists {
+		logger.Info().Str("env", "BADGERDB_DISCARD_RATIO").Str("value", value).
+			Msg("Env variable BADGERDB_DISCARD_RATIO is set.")
+		dbDiscardRatio, err = strconv.ParseFloat(value, 64)
+		if err != nil {
+			return nil, errors.New("invalid BADGERDB_DISCARD_RATIO env variable ")
+		}
+	}
+	var noGc = false
+	if _, exists := os.LookupEnv("BADGERDB_NO_GC"); exists {
+		logger.Info().Str("env", "BADGERDB_NO_GC").
+			Msg("Env variable BADGERDB_NO_GC is set.")
+		noGc = true
+	}
+
 	// set option file
 	opts := badger.DefaultOptions(dir)
 
@@ -89,14 +115,19 @@ func newBadgerDB(dir string, opt ...Opt) (DB, error) {
 	// store values, whose size is smaller than 1k, to a lsm tree -> to invoke flushing memtable
 	opts.ValueThreshold = badgerValueThreshold
 
-	// to reduce size of value log file for low throughtput of cloud; 1GB -> 64 MB
+	// to reduce size of value log file for low throughput of cloud; 1GB -> 64 MB
 	// Time to read or write 1GB file in cloud (normal disk, not high provisioned) takes almost 20 seconds for GC
 	opts.ValueLogFileSize = badgerValueLogFileSize
-
 	//opts.MaxTableSize = 1 << 20 // 2 ^ 20 = 1048576, max mempool size invokes updating vlog header for gc
 
 	// set aergo-lib logger instead of default badger stderr logger
 	opts.Logger = logger
+
+	if _, exists := os.LookupEnv("BADGERDB_NO_COMPRESSION"); exists {
+		logger.Info().Str("env", "BADGERDB_NO_COMPRESSION").
+			Msg("Env variable BADGERDB_NO_COMPRESSION is set.")
+		opts.Compression = options.None
+	}
 
 	// apply user option
 	for _, o := range opt {
@@ -121,10 +152,12 @@ func newBadgerDB(dir string, opt ...Opt) (DB, error) {
 	ctx, cancelFunc := context.WithCancel(context.Background())
 
 	database := &badgerDB{
-		db:         db,
-		ctx:        ctx,
-		cancelFunc: cancelFunc,
-		name:       dir,
+		db:           db,
+		ctx:          ctx,
+		cancelFunc:   cancelFunc,
+		name:         dir,
+		discardRatio: dbDiscardRatio,
+		noGc:         noGc,
 	}
 
 	go database.runBadgerGC()
@@ -144,6 +177,9 @@ type badgerDB struct {
 	ctx        context.Context
 	cancelFunc context.CancelFunc
 	name       string
+
+	discardRatio float64
+	noGc         bool
 }
 
 // Type function returns a database type name
