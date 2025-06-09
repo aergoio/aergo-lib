@@ -18,3 +18,4 @@ Gopkg.lock
 
 # developer workspace specific
 /conf
+/arglog.toml
