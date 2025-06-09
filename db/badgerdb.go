@@ -128,21 +128,45 @@ func newBadgerDB(dir string, opt ...Opt) (DB, error) {
 			Msg("Env variable BADGERDB_NO_COMPRESSION is set.")
 		opts.Compression = options.None
 	}
-
-	// apply user option
-	for _, o := range opt {
-		switch o.Name {
-		case OptBadgerValueThreshold:
-			valueThreshold, ok := o.Value.(int64)
-			if !ok {
-				return nil, errors.New("invalid value type for ValueThreshold, expected int64")
-			}
-			logger.Info().Int64("default", opts.ValueThreshold).Int64("to", valueThreshold).Str("opt", "ValueThreshold").Msg("override badger option")
-			opts = opts.WithValueThreshold(valueThreshold)
-		default:
-
+	if value, exists := os.LookupEnv("BADGERDB_VALUE_LOG_FILE_SIZE_MB"); exists {
+		logger.Info().Str("env", "BADGERDB_VALUE_LOG_FILE_SIZE_MB").Str("value", value).
+			Msg("Env variable BADGERDB_VALUE_LOG_FILE_SIZE_MB is set.")
+		intValue, err := strconv.ParseInt(value, 10, 64)
+		if err != nil || intValue < 0 || intValue > 2<<24 {
+			return nil, errors.New("invalid BADGERDB_VALUE_LOG_FILE_SIZE_MB env variable ")
 		}
+		intValue = intValue << 20
+		opts.ValueLogFileSize = intValue
 	}
+	if value, exists := os.LookupEnv("BADGERDB_BLOCK_CACHE_SIZE_MB"); exists {
+		logger.Info().Str("env", "BADGERDB_BLOCK_CACHE_SIZE_MB").Str("value", value).
+			Msg("Env variable BADGERDB_BLOCK_CACHE_SIZE_MB is set.")
+		intValue, err := strconv.ParseInt(value, 10, 64)
+		if err != nil || intValue < 0 || intValue > 2<<24 {
+			return nil, errors.New("invalid BADGERDB_BLOCK_CACHE_SIZE_MB env variable ")
+		}
+		intValue = intValue << 20
+		opts.BlockCacheSize = intValue
+	}
+	if value, exists := os.LookupEnv("BADGERDB_VALUE_THRESHOLD"); exists {
+		logger.Info().Str("env", "BADGERDB_VALUE_THRESHOLD").Str("value", value).
+			Msg("Env variable BADGERDB_VALUE_THRESHOLD is set.")
+		intValue, err := strconv.ParseInt(value, 10, 64)
+		if err != nil || intValue < 0 || intValue > 2<<24 {
+			return nil, errors.New("invalid BADGERDB_VALUE_THRESHOLD env variable ")
+		}
+		opts.ValueThreshold = intValue
+	}
+	if value, exists := os.LookupEnv("BADGERDB_NUM_COMPACTORS"); exists {
+		logger.Info().Str("env", "BADGERDB_NUM_COMPACTORS").Str("value", value).
+			Msg("Env variable BADGERDB_NUM_COMPACTORS is set.")
+		intValue, err := strconv.ParseInt(value, 10, 32)
+		if err != nil || intValue < 2 || intValue > 2<<16 {
+			return nil, errors.New("invalid BADGERDB_NUM_COMPACTORS env variable ")
+		}
+		opts.NumCompactors = int(intValue)
+	}
+
 	// open badger db
 	db, err := badger.Open(opts)
 	if err != nil {
