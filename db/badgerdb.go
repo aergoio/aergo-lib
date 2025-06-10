@@ -184,6 +184,22 @@ func newBadgerDB(dir string, opt ...Opt) (DB, error) {
 
 	ctx, cancelFunc := context.WithCancel(context.Background())
 
+	if value, exists := os.LookupEnv("BADGERDB_FLATTEN"); exists {
+		logger.Info().Str("env", "BADGERDB_FLATTEN").Str("workers", value).
+			Msg("Env variable BADGERDB_FLATTEN is set. ")
+		workers, err := strconv.ParseInt(value, 10, 64)
+		if err != nil || workers < 0 || workers > 2<<16 {
+			cancelFunc()
+			return nil, errors.New("invalid BADGERDB_FLATTEN env variable ")
+		}
+		err = db.Flatten(int(workers))
+		if err != nil {
+			logger.Error().Err(err).Msg("Fail to flatten badger db")
+			cancelFunc()
+			return nil, err
+		}
+	}
+
 	database := &badgerDB{
 		db:           db,
 		ctx:          ctx,
