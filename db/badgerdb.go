@@ -161,7 +161,7 @@ func newBadgerDB(dir string, opt ...Opt) (DB, error) {
 		logger.Info().Str("env", "BADGERDB_NUM_COMPACTORS").Str("value", value).
 			Msg("Env variable BADGERDB_NUM_COMPACTORS is set.")
 		intValue, err := strconv.ParseInt(value, 10, 32)
-		if err != nil || intValue < 1 || intValue > 2<<16 {
+		if err != nil || intValue > 2<<16 {
 			return nil, errors.New("invalid BADGERDB_NUM_COMPACTORS env variable ")
 		}
 		opts.NumCompactors = int(intValue)
