@@ -161,10 +161,19 @@ func newBadgerDB(dir string, opt ...Opt) (DB, error) {
 		logger.Info().Str("env", "BADGERDB_NUM_COMPACTORS").Str("value", value).
 			Msg("Env variable BADGERDB_NUM_COMPACTORS is set.")
 		intValue, err := strconv.ParseInt(value, 10, 32)
-		if err != nil || intValue < 2 || intValue > 2<<16 {
+		if err != nil || intValue < 1 || intValue > 2<<16 {
 			return nil, errors.New("invalid BADGERDB_NUM_COMPACTORS env variable ")
 		}
 		opts.NumCompactors = int(intValue)
+	}
+	if value, exists := os.LookupEnv("BADGERDB_BASE_TABLE"); exists {
+		logger.Info().Str("env", "BADGERDB_BASE_TABLE").Str("value", value).
+			Msg("Env variable BADGERDB_BASE_TABLE is set.")
+		intValue, err := strconv.ParseInt(value, 10, 64)
+		if err != nil || intValue < 0 || intValue > 2<<40 {
+			return nil, errors.New("invalid BADGERDB_BASE_TABLE env variable ")
+		}
+		opts.BaseTableSize = intValue
 	}
 
 	// open badger db
