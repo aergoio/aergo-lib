@@ -3,7 +3,7 @@ module github.com/aergoio/aergo-lib
 go 1.13
 
 require (
-	github.com/dgraph-io/badger/v3 v3.2103.2
+	github.com/shepelt/badger/v3 v3.2103.2
 	github.com/dgryski/go-farm v0.0.0-20200201041132-a6ae2369ad13 // indirect
 	github.com/fsnotify/fsnotify v1.4.8-0.20180830220226-ccc981bf8038 // indirect
 	github.com/golang/protobuf v1.3.3 // indirect
