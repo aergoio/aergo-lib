@@ -10,26 +10,87 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/dgraph-io/badger/v3/options"
+	"net"
 	"os"
 	"strconv"
+	"sync/atomic"
 	"time"
+
+	"github.com/dgraph-io/badger/v3/options"
+
+	"github.com/gin-gonic/gin"
 
 	"github.com/aergoio/aergo-lib/log"
 	"github.com/dgraph-io/badger/v3"
 )
 
 const (
-	badgerDbDiscardRatio   = 0.5 // run gc when 50% of samples can be collected
-	badgerDbGcInterval     = 10 * time.Minute
-	badgerDbGcSize         = 1 << 20 // 1 MB
-	badgerValueLogFileSize = 1 << 26
-	badgerValueThreshold   = 1024
+	badgerDbDiscardRatio            = 0.5 // run gc when 50% of samples can be collected
+	badgerDbGcInterval              = 10 * time.Minute
+	badgerDbGcSize                  = 1 << 20 // 1 MB
+	badgerValueLogFileSize          = 1 << 26
+	badgerValueThreshold            = 1024
+	defaultCompactionControllerPort = 17091
 )
 
 const (
 	OptBadgerValueThreshold = "ValueThreshold"
 )
+
+// compaction controller interface
+type compactionController struct {
+	db *badger.DB
+}
+
+func NewCompactionController(db *badger.DB) *compactionController {
+	return &compactionController{db: db}
+}
+
+func (cmpCtl *compactionController) Start() {
+	go cmpCtl.run()
+}
+
+var isFlattening int32 = 0 // atomic flag
+func (cmpCtl *compactionController) flattenHandler(c *gin.Context) {
+	if !atomic.CompareAndSwapInt32(&isFlattening, 0, 1) {
+		c.JSON(429, gin.H{"error": "Flatten already in progress"})
+		return
+	}
+	defer atomic.StoreInt32(&isFlattening, 0)
+
+	err := cmpCtl.db.Flatten(4)
+	if err != nil {
+		c.JSON(500, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(200, gin.H{"status": "flatten completed"})
+}
+
+func (cmpCtl *compactionController) run() {
+	hostPort := func(port int) string {
+		// Allow debug dump to access only from the local machine.
+		host := "127.0.0.1"
+		if port <= 0 {
+			port = defaultCompactionControllerPort
+		}
+		return net.JoinHostPort(host, fmt.Sprintf("%d", port))
+	}
+
+	r := gin.Default()
+
+	// Dump the top n rankers.
+	r.GET("/compaction", func(c *gin.Context) {
+		c.Header("Content-Type", "application/json; charset=utf-8")
+		c.String(200, "compaction controller")
+	})
+	r.GET("/compaction/flatten", cmpCtl.flattenHandler)
+
+	if err := r.Run(hostPort(0)); err != nil {
+
+		logger.Fatal().Err(err).Msg("failed to start compaction controller")
+	}
+}
 
 // This function is always called first
 func init() {
@@ -87,6 +148,17 @@ func (db *badgerDB) runBadgerGC() {
 // An input parameter, dir, is a root directory to store db files.
 func newBadgerDB(dir string, opt ...Opt) (DB, error) {
 	// internal configurations
+	var cmpControllerEnabled bool
+
+	for _, op := range opt {
+		if op.Name == "compactionController" {
+			if val, ok := op.Value.(bool); ok && val {
+				cmpControllerEnabled = true
+			}
+			break
+		}
+	}
+
 	var dbDiscardRatio = badgerDbDiscardRatio
 	var err error
 	if value, exists := os.LookupEnv("BADGERDB_DISCARD_RATIO"); exists {
@@ -176,6 +248,24 @@ func newBadgerDB(dir string, opt ...Opt) (DB, error) {
 		opts.BaseTableSize = intValue
 	}
 
+	opts.OnCompactionStart = func(event badger.CompactionEvent) {
+		logger.Info().Str("compaction", event.Reason).
+			Int("compaction level", event.Level).
+			Float64("compaction score", event.Adjusted).
+			Msg("Compaction Started ")
+	}
+	// limit subcompactors, otherwise badgerDB creates massive number of goroutines
+	// to do subcompaction at once (8~20+)
+	if value, exists := os.LookupEnv("BADGERDB_NUM_SUBCOMPACTORS"); exists {
+		logger.Info().Str("env", "BADGERDB_NUM_SUBCOMPACTORS").Str("value", value).
+			Msg("Env variable BADGERDB_NUM_SUBCOMPACTORS is set.")
+		intValue, err := strconv.ParseInt(value, 10, 32)
+		if err != nil || intValue > 2<<16 {
+			return nil, errors.New("invalid BADGERDB_NUM_SUBCOMPACTORS env variable ")
+		}
+		opts.MaxParallelism = int(intValue)
+	}
+
 	// open badger db
 	db, err := badger.Open(opts)
 	if err != nil {
@@ -184,21 +274,22 @@ func newBadgerDB(dir string, opt ...Opt) (DB, error) {
 
 	ctx, cancelFunc := context.WithCancel(context.Background())
 
-	if value, exists := os.LookupEnv("BADGERDB_FLATTEN"); exists {
-		logger.Info().Str("env", "BADGERDB_FLATTEN").Str("workers", value).
-			Msg("Env variable BADGERDB_FLATTEN is set. ")
-		workers, err := strconv.ParseInt(value, 10, 64)
-		if err != nil || workers < 0 || workers > 2<<16 {
-			cancelFunc()
-			return nil, errors.New("invalid BADGERDB_FLATTEN env variable ")
-		}
-		err = db.Flatten(int(workers))
-		if err != nil {
-			logger.Error().Err(err).Msg("Fail to flatten badger db")
-			cancelFunc()
-			return nil, err
-		}
-	}
+	// FIXME: automatic flattening at load disabled to protect race condition
+	// if value, exists := os.LookupEnv("BADGERDB_FLATTEN"); exists {
+	// 	logger.Info().Str("env", "BADGERDB_FLATTEN").Str("workers", value).
+	// 		Msg("Env variable BADGERDB_FLATTEN is set. ")
+	// 	workers, err := strconv.ParseInt(value, 10, 64)
+	// 	if err != nil || workers < 0 || workers > 2<<16 {
+	// 		cancelFunc()
+	// 		return nil, errors.New("invalid BADGERDB_FLATTEN env variable ")
+	// 	}
+	// 	err = db.Flatten(int(workers))
+	// 	if err != nil {
+	// 		logger.Error().Err(err).Msg("Fail to flatten badger db")
+	// 		cancelFunc()
+	// 		return nil, err
+	// 	}
+	// }
 
 	database := &badgerDB{
 		db:           db,
@@ -209,8 +300,16 @@ func newBadgerDB(dir string, opt ...Opt) (DB, error) {
 		noGc:         noGc,
 	}
 
-	go database.runBadgerGC()
+	// attach compaction controller with db
+	if cmpControllerEnabled {
+		logger.Info().Msg("Comapaction controller enabled")
+		cmpController := NewCompactionController(db)
+		cmpController.Start()
+	} else {
+		logger.Info().Msg("Comapaction controller not enabled")
+	}
 
+	go database.runBadgerGC()
 	return database, nil
 }
 
