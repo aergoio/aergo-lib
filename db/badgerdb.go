@@ -31,7 +31,6 @@ const (
 	badgerValueLogFileSize          = 1 << 26
 	badgerValueThreshold            = 1024
 	defaultCompactionControllerPort = 17091
-	badgerMaxLevels                 = 8
 )
 
 const (
@@ -193,8 +192,6 @@ func newBadgerDB(dir string, opt ...Opt) (DB, error) {
 	opts.ValueLogFileSize = badgerValueLogFileSize
 	//opts.MaxTableSize = 1 << 20 // 2 ^ 20 = 1048576, max mempool size invokes updating vlog header for gc
 
-	opts.MaxLevels = badgerMaxLevels
-
 	// set aergo-lib logger instead of default badger stderr logger
 	opts.Logger = logger
 
@@ -250,7 +247,16 @@ func newBadgerDB(dir string, opt ...Opt) (DB, error) {
 		}
 		opts.BaseTableSize = intValue
 	}
-
+	if value, exists := os.LookupEnv("BADGERDB_MAX_LEVELS"); exists {
+		logger.Info().Str("env", "BADGERDB_MAX_LEVELS").Str("value", value).
+			Msg("Env variable BADGERDB_MAX_LEVELS is set.")
+		intValue, err := strconv.ParseInt(value, 10, 32)
+		if err != nil || intValue < 0 || intValue > 2<<8 {
+			return nil, errors.New("invalid BADGERDB_MAX_LEVELS env variable ")
+		}
+		opts.MaxLevels = int(intValue)
+	}
+	
 	opts.OnCompactionStart = func(event badger.CompactionEvent) {
 		logger.Info().Str("compaction", event.Reason).
 			Int("compaction level", event.Level).
