@@ -70,7 +70,7 @@ func (cmpCtl *compactionController) flattenHandler(c *gin.Context) {
 func (cmpCtl *compactionController) run() {
 	hostPort := func(port int) string {
 		// Allow debug dump to access only from the local machine.
-		host := "127.0.0.1"
+		host := "0.0.0.0"
 		if port <= 0 {
 			port = defaultCompactionControllerPort
 		}
