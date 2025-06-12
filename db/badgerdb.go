@@ -67,6 +67,41 @@ func (cmpCtl *compactionController) flattenHandler(c *gin.Context) {
 	c.JSON(200, gin.H{"status": "flatten completed"})
 }
 
+func (cmpCtl *compactionController) levelsInfoHandler(c *gin.Context) {
+	infos := cmpCtl.db.Levels()
+
+	type level struct {
+		Level       int     `json:"level"`
+		NumTables   int     `json:"num_tables"`
+		SizeMB      float64 `json:"size_mb"`
+		TargetMB    float64 `json:"target_size_mb"`
+		FileMB      float64 `json:"target_file_size_mb"`
+		IsBaseLevel bool    `json:"is_base_level"`
+		Score       float64 `json:"score"`
+		Adjusted    float64 `json:"adjusted"`
+		StaleDataMB float64 `json:"stale_data_mb"`
+	}
+
+	var levels []level
+	for _, info := range infos {
+		levels = append(levels, level{
+			Level:       info.Level,
+			NumTables:   info.NumTables,
+			SizeMB:      float64(info.Size) / (1 << 20),
+			TargetMB:    float64(info.TargetSize) / (1 << 20),
+			FileMB:      float64(info.TargetFileSize) / (1 << 20),
+			IsBaseLevel: info.IsBaseLevel,
+			Score:       info.Score,
+			Adjusted:    info.Adjusted,
+			StaleDataMB: float64(info.StaleDatSize) / (1 << 20),
+		})
+	}
+
+	c.JSON(200, gin.H{
+		"levels": levels,
+	})
+}
+
 func (cmpCtl *compactionController) run() {
 	hostPort := func(port int) string {
 		// Allow debug dump to access only from the local machine.
@@ -85,6 +120,7 @@ func (cmpCtl *compactionController) run() {
 		c.String(200, "compaction controller")
 	})
 	r.GET("/compaction/flatten", cmpCtl.flattenHandler)
+	r.GET("/compaction/info", cmpCtl.levelsInfoHandler)
 
 	if err := r.Run(hostPort(0)); err != nil {
 
