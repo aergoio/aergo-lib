@@ -409,11 +409,11 @@ func newBadgerDB(dir string, opt ...Opt) (DB, error) {
 
 	// attach compaction controller with db
 	if cmpControllerEnabled {
-		logger.Info().Int("port", port).Msg("Comapaction controller enabled")
+		logger.Info().Int("port", port).Msg("Compaction controller enabled")
 		cmpController := NewCompactionController(database, port)
 		cmpController.Start()
 	} else {
-		logger.Info().Msg("Comapaction controller not enabled")
+		logger.Info().Msg("Compaction controller not enabled")
 	}
 
 	go database.runBadgerGC()
@@ -774,4 +774,25 @@ func (iter *badgerIterator) Value() (value []byte) {
 	}
 
 	return retVal
+}
+
+func readEnvFlagValue(envName string, applyFunc func(value string)) {
+	if value, exists := os.LookupEnv(envName); exists {
+		logger.Info().Str("env", envName).Str("value", value).
+			Msg("Env variable is set.")
+		applyFunc(value)
+	}
+}
+
+func readEnvIntValue(envName string, lowerLimit, upperLimit int64, applyFunc func(val int64)) error {
+	if value, exists := os.LookupEnv(envName); exists {
+		logger.Info().Str("env", envName).Str("value", value).
+			Msg("Env variable is set.")
+		intValue, err := strconv.ParseInt(value, 10, 64)
+		if err != nil || intValue < lowerLimit || intValue > upperLimit {
+			return fmt.Errorf("invalid %s env variable ", envName)
+		}
+		applyFunc(intValue)
+	}
+	return nil
 }
