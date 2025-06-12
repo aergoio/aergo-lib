@@ -105,7 +105,7 @@ func (cmpCtl *compactionController) levelsInfoHandler(c *gin.Context) {
 func (cmpCtl *compactionController) run() {
 	hostPort := func(port int) string {
 		// Allow debug dump to access only from the local machine.
-		host := "127.0.0.1"
+		host := "0.0.0.0"
 		if port <= 0 {
 			port = defaultCompactionControllerPort
 		}
@@ -283,7 +283,16 @@ func newBadgerDB(dir string, opt ...Opt) (DB, error) {
 		}
 		opts.BaseTableSize = intValue
 	}
-
+	if value, exists := os.LookupEnv("BADGERDB_MAX_LEVELS"); exists {
+		logger.Info().Str("env", "BADGERDB_MAX_LEVELS").Str("value", value).
+			Msg("Env variable BADGERDB_MAX_LEVELS is set.")
+		intValue, err := strconv.ParseInt(value, 10, 32)
+		if err != nil || intValue < 0 || intValue > 2<<8 {
+			return nil, errors.New("invalid BADGERDB_MAX_LEVELS env variable ")
+		}
+		opts.MaxLevels = int(intValue)
+	}
+	
 	opts.OnCompactionStart = func(event badger.CompactionEvent) {
 		logger.Info().Str("compaction", event.Reason).
 			Int("compaction level", event.Level).
