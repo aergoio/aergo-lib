@@ -41,6 +41,7 @@ type Transaction interface {
 	//	Get(key []byte) []byte
 	Set(key, value []byte)
 	Delete(key []byte)
+	// Commit tra
 	Commit()
 	Discard()
 }

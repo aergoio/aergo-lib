@@ -1,9 +1,13 @@
 package db
 
 import (
+	"encoding/json"
+	"flag"
 	"fmt"
+	"github.com/aergoio/aergo-lib/log"
 	"io/ioutil"
 	"net/http"
+	"os"
 	"path"
 	"testing"
 	"time"
@@ -26,8 +30,6 @@ func Test_newBadgerDB(t *testing.T) {
 		wantErr assert.ErrorAssertionFunc
 	}{
 		{"default", args{[]Opt{}}, badgerValueThreshold, assert.NoError},
-		{"default", args{[]Opt{Opt{OptBadgerValueThreshold, int64(3330)}}}, 3330, assert.NoError},
-		// TODO: Add test cases.
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -48,31 +50,57 @@ func Test_badgerDB_EnvSet(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	type args struct {
-		opt []Opt
+	type env struct {
+		Name, Value string
 	}
 	tests := []struct {
-		name    string
-		args    args
-		want    int64
-		wantErr assert.ErrorAssertionFunc
+		name          string
+		args          []env
+		wantCompactor int
 	}{
-		{"default", args{[]Opt{}}, badgerValueThreshold, assert.NoError},
+		{"default", []env{}, 4},
+		{"zero", []env{{"BADGERDB_NUM_COMPACTORS", "0"}}, 0},
+		{"withOthers", []env{
+			{"BADGERDB_NO_COMPRESSION", "1"},
+			{"BADGERDB_BLOCK_CACHE_SIZE_MB", "15"},
+			{"BADGERDB_NUM_COMPACTORS", "3"},
+		}, 3},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			for _, envVar := range tt.args {
+				err := os.Setenv(envVar.Name, envVar.Value)
+				if err != nil {
+					t.Fatal(err)
+				}
+			}
+			defer func() {
+				for _, envVar := range tt.args {
+					_ = os.Unsetenv(envVar.Name)
+				}
+			}()
+
 			dir := path.Join(tmpDir, tt.name)
-			got := NewDB(BadgerImpl, dir, tt.args.opt...)
+			got := NewDB(BadgerImpl, dir)
 			defer got.Close()
+
+			actual := got.(*badgerDB)
+			assert.Equalf(t, tt.wantCompactor, actual.db.Opts().NumCompactors, "badgerDB.EnvSet(%v)", tt.args)
 		})
 	}
 }
+
+var longTest = flag.Bool("long", false, "run long-running tests")
 
 func Test_badgerDB_CompactionController(t *testing.T) {
 	// tmpDir, err := ioutil.TempDir("", "badgerdb-test-*")
 	// if err != nil {
 	// 	t.Fatal(err)
 	// }
+	// longTest 플래그가 false면 테스트 스킵
+	if !*longTest {
+		t.Skip("skipping long-running test; use -long flag to run")
+	}
 
 	tmpDir := "/tmp/badgerdb-test-3355012276"
 
@@ -124,6 +152,56 @@ func Test_badgerDB_CompactionController(t *testing.T) {
 			fmt.Println(resp)
 
 			defer got.Close()
+		})
+	}
+}
+
+func Test_getBadgerOptions(t *testing.T) {
+	logger = newBadgerExtendedLog(log.NewLogger("db.test"))
+	var dir = "/tmp/badgerdb-test-3355012276"
+	type env struct {
+		Name  string
+		Value string
+	}
+	tests := []struct {
+		name    string
+		args    []env
+		wantErr assert.ErrorAssertionFunc
+	}{
+		{"default", []env{}, assert.NoError},
+		{"flagValue", []env{{"BADGERDB_NO_COMPRESSION", "1"}}, assert.NoError},
+		{"intValue", []env{{"BADGERDB_BLOCK_CACHE_SIZE_MB", "15"}}, assert.NoError},
+		{"mixed", []env{
+			{"BADGERDB_NO_COMPRESSION", "1"},
+			{"BADGERDB_BLOCK_CACHE_SIZE_MB", "15"},
+			{"BADGERDB_NUM_COMPACTORS", "3"},
+		}, assert.NoError},
+		{"wrongInt", []env{{"BADGERDB_BLOCK_CACHE_SIZE_MB", "abc"}}, assert.Error},
+		{"wrongInt2", []env{{"BADGERDB_BLOCK_CACHE_SIZE_MB", "0.5"}}, assert.Error},
+		// TODO: Add test cases.
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			for _, envVar := range tt.args {
+				err := os.Setenv(envVar.Name, envVar.Value)
+				if err != nil {
+					t.Fatal(err)
+				}
+			}
+			defer func() {
+				for _, envVar := range tt.args {
+					_ = os.Unsetenv(envVar.Name)
+				}
+			}()
+			got, err := getBadgerOptions(dir)
+			if !tt.wantErr(t, err, fmt.Sprintf("getBadgerOptions()")) {
+				return
+			}
+			expected, err := getBadgerOptionsOld(dir)
+
+			expectJson, err := json.Marshal(expected)
+			gotJson, err := json.Marshal(got)
+			assert.Equalf(t, expectJson, gotJson, "getBadgerOptions and getBadgerOptionsOld")
 		})
 	}
 }

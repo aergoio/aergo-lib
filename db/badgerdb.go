@@ -33,10 +33,6 @@ const (
 	defaultCompactionControllerPort = 17091
 )
 
-const (
-	OptBadgerValueThreshold = "ValueThreshold"
-)
-
 // compaction controller interface
 type compactionController struct {
 	db *badger.DB
@@ -197,118 +193,23 @@ func newBadgerDB(dir string, opt ...Opt) (DB, error) {
 
 	var dbDiscardRatio = badgerDbDiscardRatio
 	var err error
-	if value, exists := os.LookupEnv("BADGERDB_DISCARD_RATIO"); exists {
-		logger.Info().Str("env", "BADGERDB_DISCARD_RATIO").Str("value", value).
-			Msg("Env variable BADGERDB_DISCARD_RATIO is set.")
+	readEnvFlagValue("BADGERDB_DISCARD_RATIO", func(value string) {
 		dbDiscardRatio, err = strconv.ParseFloat(value, 64)
 		if err != nil {
-			return nil, errors.New("invalid BADGERDB_DISCARD_RATIO env variable ")
+			err = errors.New("invalid BADGERDB_DISCARD_RATIO env variable ")
 		}
+	})
+	if err != nil {
+		return nil, err
 	}
 	var noGc = false
-	if _, exists := os.LookupEnv("BADGERDB_NO_GC"); exists {
-		logger.Info().Str("env", "BADGERDB_NO_GC").
-			Msg("Env variable BADGERDB_NO_GC is set.")
+	readEnvFlagValue("BADGERDB_NO_GC", func(value string) {
 		noGc = true
-	}
+	})
 
-	// set option file
-	opts := badger.DefaultOptions(dir)
-
-	// TODO : options tuning.
-	// Quick fix to prevent RAM usage from going to the roof when adding 10Million new keys during tests
-	// *** BadgerDB v3 no longer supports FileIO option. To fix build, the related lines are commented out. ***
-	// opts.ValueLogLoadingMode = options.FileIO
-	// opts.TableLoadingMode = options.FileIO
-	// store values, whose size is smaller than 1k, to a lsm tree -> to invoke flushing memtable
-	opts.ValueThreshold = badgerValueThreshold
-
-	// to reduce size of value log file for low throughput of cloud; 1GB -> 64 MB
-	// Time to read or write 1GB file in cloud (normal disk, not high provisioned) takes almost 20 seconds for GC
-	opts.ValueLogFileSize = badgerValueLogFileSize
-	//opts.MaxTableSize = 1 << 20 // 2 ^ 20 = 1048576, max mempool size invokes updating vlog header for gc
-
-	// set aergo-lib logger instead of default badger stderr logger
-	opts.Logger = logger
-
-	if _, exists := os.LookupEnv("BADGERDB_NO_COMPRESSION"); exists {
-		logger.Info().Str("env", "BADGERDB_NO_COMPRESSION").
-			Msg("Env variable BADGERDB_NO_COMPRESSION is set.")
-		opts.Compression = options.None
-	}
-	if value, exists := os.LookupEnv("BADGERDB_VALUE_LOG_FILE_SIZE_MB"); exists {
-		logger.Info().Str("env", "BADGERDB_VALUE_LOG_FILE_SIZE_MB").Str("value", value).
-			Msg("Env variable BADGERDB_VALUE_LOG_FILE_SIZE_MB is set.")
-		intValue, err := strconv.ParseInt(value, 10, 64)
-		if err != nil || intValue < 0 || intValue > 2<<24 {
-			return nil, errors.New("invalid BADGERDB_VALUE_LOG_FILE_SIZE_MB env variable ")
-		}
-		intValue = intValue << 20
-		opts.ValueLogFileSize = intValue
-	}
-	if value, exists := os.LookupEnv("BADGERDB_BLOCK_CACHE_SIZE_MB"); exists {
-		logger.Info().Str("env", "BADGERDB_BLOCK_CACHE_SIZE_MB").Str("value", value).
-			Msg("Env variable BADGERDB_BLOCK_CACHE_SIZE_MB is set.")
-		intValue, err := strconv.ParseInt(value, 10, 64)
-		if err != nil || intValue < 0 || intValue > 2<<24 {
-			return nil, errors.New("invalid BADGERDB_BLOCK_CACHE_SIZE_MB env variable ")
-		}
-		intValue = intValue << 20
-		opts.BlockCacheSize = intValue
-	}
-	if value, exists := os.LookupEnv("BADGERDB_VALUE_THRESHOLD"); exists {
-		logger.Info().Str("env", "BADGERDB_VALUE_THRESHOLD").Str("value", value).
-			Msg("Env variable BADGERDB_VALUE_THRESHOLD is set.")
-		intValue, err := strconv.ParseInt(value, 10, 64)
-		if err != nil || intValue < 0 || intValue > 2<<24 {
-			return nil, errors.New("invalid BADGERDB_VALUE_THRESHOLD env variable ")
-		}
-		opts.ValueThreshold = intValue
-	}
-	if value, exists := os.LookupEnv("BADGERDB_NUM_COMPACTORS"); exists {
-		logger.Info().Str("env", "BADGERDB_NUM_COMPACTORS").Str("value", value).
-			Msg("Env variable BADGERDB_NUM_COMPACTORS is set.")
-		intValue, err := strconv.ParseInt(value, 10, 32)
-		if err != nil || intValue > 2<<16 {
-			return nil, errors.New("invalid BADGERDB_NUM_COMPACTORS env variable ")
-		}
-		opts.NumCompactors = int(intValue)
-	}
-	if value, exists := os.LookupEnv("BADGERDB_BASE_TABLE"); exists {
-		logger.Info().Str("env", "BADGERDB_BASE_TABLE").Str("value", value).
-			Msg("Env variable BADGERDB_BASE_TABLE is set.")
-		intValue, err := strconv.ParseInt(value, 10, 64)
-		if err != nil || intValue < 0 || intValue > 2<<40 {
-			return nil, errors.New("invalid BADGERDB_BASE_TABLE env variable ")
-		}
-		opts.BaseTableSize = intValue
-	}
-	if value, exists := os.LookupEnv("BADGERDB_MAX_LEVELS"); exists {
-		logger.Info().Str("env", "BADGERDB_MAX_LEVELS").Str("value", value).
-			Msg("Env variable BADGERDB_MAX_LEVELS is set.")
-		intValue, err := strconv.ParseInt(value, 10, 32)
-		if err != nil || intValue < 0 || intValue > 2<<8 {
-			return nil, errors.New("invalid BADGERDB_MAX_LEVELS env variable ")
-		}
-		opts.MaxLevels = int(intValue)
-	}
-	
-	opts.OnCompactionStart = func(event badger.CompactionEvent) {
-		logger.Info().Str("compaction", event.Reason).
-			Int("compaction level", event.Level).
-			Float64("compaction score", event.Adjusted).
-			Msg("Compaction Started ")
-	}
-	// limit subcompactors, otherwise badgerDB creates massive number of goroutines
-	// to do subcompaction at once (8~20+)
-	if value, exists := os.LookupEnv("BADGERDB_NUM_SUBCOMPACTORS"); exists {
-		logger.Info().Str("env", "BADGERDB_NUM_SUBCOMPACTORS").Str("value", value).
-			Msg("Env variable BADGERDB_NUM_SUBCOMPACTORS is set.")
-		intValue, err := strconv.ParseInt(value, 10, 32)
-		if err != nil || intValue > 2<<16 {
-			return nil, errors.New("invalid BADGERDB_NUM_SUBCOMPACTORS env variable ")
-		}
-		opts.MaxParallelism = int(intValue)
+	opts, err := getBadgerOptions(dir)
+	if err != nil {
+		return nil, err
 	}
 
 	// open badger db
@@ -356,6 +257,208 @@ func newBadgerDB(dir string, opt ...Opt) (DB, error) {
 
 	go database.runBadgerGC()
 	return database, nil
+}
+
+func getBadgerOptions(dir string) (badger.Options, error) {
+	var err error
+	// set option file
+	opts := badger.DefaultOptions(dir)
+
+	// TODO : options tuning.
+	// Quick fix to prevent RAM usage from going to the roof when adding 10Million new keys during tests
+	// *** BadgerDB v3 no longer supports FileIO option. To fix build, the related lines are commented out. ***
+	// opts.ValueLogLoadingMode = options.FileIO
+	// opts.TableLoadingMode = options.FileIO
+	// store values, whose size is smaller than 1k, to a lsm tree -> to invoke flushing memtable
+	opts.ValueThreshold = badgerValueThreshold
+
+	// to reduce size of value log file for low throughput of cloud; 1GB -> 64 MB
+	// Time to read or write 1GB file in cloud (normal disk, not high provisioned) takes almost 20 seconds for GC
+	opts.ValueLogFileSize = badgerValueLogFileSize
+	//opts.MaxTableSize = 1 << 20 // 2 ^ 20 = 1048576, max mempool size invokes updating vlog header for gc
+
+	// set aergo-lib logger instead of default badger stderr logger
+	opts.Logger = logger
+
+	readEnvFlagValue("BADGERDB_NO_COMPRESSION", func(value string) {
+		opts.Compression = options.None
+	})
+
+	err = readEnvIntValue("BADGERDB_VALUE_LOG_FILE_SIZE_MB", 0, 2<<24, func(intValue int64) {
+		opts.ValueLogFileSize = intValue << 20
+	})
+	if err != nil {
+		return opts, err
+	}
+	err = readEnvIntValue("BADGERDB_BLOCK_CACHE_SIZE_MB", 0, 2<<24, func(intValue int64) {
+		opts.BlockCacheSize = intValue << 20
+	})
+	if err != nil {
+		return opts, err
+	}
+	err = readEnvIntValue("BADGERDB_VALUE_THRESHOLD", 0, 2<<24, func(intValue int64) {
+		opts.ValueThreshold = intValue
+	})
+	if err != nil {
+		return opts, err
+	}
+	err = readEnvIntValue("BADGERDB_NUM_COMPACTORS", 0, 2<<16, func(intValue int64) {
+		opts.NumCompactors = int(intValue)
+	})
+	if err != nil {
+		return opts, err
+	}
+	err = readEnvIntValue("BADGERDB_BASE_TABLE", 0, 2<<40, func(intValue int64) {
+		opts.BaseTableSize = intValue
+	})
+	if err != nil {
+		return opts, err
+	}
+	err = readEnvIntValue("BADGERDB_MAX_LEVELS", 0, 2<<8, func(intValue int64) {
+		opts.MaxLevels = int(intValue)
+	})
+	if err != nil {
+		return opts, err
+	}
+	// limit subcompactors, otherwise badgerDB creates massive number of goroutines
+	// to do subcompaction at once (8~20+)
+	err = readEnvIntValue("BADGERDB_NUM_SUBCOMPACTORS", 0, 2<<16, func(intValue int64) {
+		opts.MaxParallelism = int(intValue)
+	})
+	if err != nil {
+		return opts, err
+	}
+	opts.OnCompactionStart = func(event badger.CompactionEvent) {
+		logger.Info().Str("compaction", event.Reason).
+			Int("compaction level", event.Level).
+			Float64("compaction score", event.Adjusted).
+			Msg("Compaction Started ")
+	}
+
+	return opts, nil
+}
+
+func readEnvFlagValue(envName string, applyFunc func(value string)) {
+	if value, exists := os.LookupEnv(envName); exists {
+		logger.Info().Str("env", envName).Str("value", value).
+			Msg("Env variable is set.")
+		applyFunc(value)
+	}
+}
+
+func readEnvIntValue(envName string, lowerLimit, upperLimit int64, applyFunc func(val int64)) error {
+	if value, exists := os.LookupEnv(envName); exists {
+		logger.Info().Str("env", envName).Str("value", value).
+			Msg("Env variable is set.")
+		intValue, err := strconv.ParseInt(value, 10, 64)
+		if err != nil || intValue < lowerLimit || intValue > upperLimit {
+			return fmt.Errorf("invalid %s env variable ", envName)
+		}
+		applyFunc(intValue)
+	}
+	return nil
+}
+
+func getBadgerOptionsOld(dir string) (badger.Options, error) {
+	// set option file
+	opts := badger.DefaultOptions(dir)
+
+	// TODO : options tuning.
+	// Quick fix to prevent RAM usage from going to the roof when adding 10Million new keys during tests
+	// *** BadgerDB v3 no longer supports FileIO option. To fix build, the related lines are commented out. ***
+	// opts.ValueLogLoadingMode = options.FileIO
+	// opts.TableLoadingMode = options.FileIO
+	// store values, whose size is smaller than 1k, to a lsm tree -> to invoke flushing memtable
+	opts.ValueThreshold = badgerValueThreshold
+
+	// to reduce size of value log file for low throughput of cloud; 1GB -> 64 MB
+	// Time to read or write 1GB file in cloud (normal disk, not high provisioned) takes almost 20 seconds for GC
+	opts.ValueLogFileSize = badgerValueLogFileSize
+	//opts.MaxTableSize = 1 << 20 // 2 ^ 20 = 1048576, max mempool size invokes updating vlog header for gc
+
+	// set aergo-lib logger instead of default badger stderr logger
+	opts.Logger = logger
+
+	if _, exists := os.LookupEnv("BADGERDB_NO_COMPRESSION"); exists {
+		logger.Info().Str("env", "BADGERDB_NO_COMPRESSION").
+			Msg("Env variable BADGERDB_NO_COMPRESSION is set.")
+		opts.Compression = options.None
+	}
+	if value, exists := os.LookupEnv("BADGERDB_VALUE_LOG_FILE_SIZE_MB"); exists {
+		logger.Info().Str("env", "BADGERDB_VALUE_LOG_FILE_SIZE_MB").Str("value", value).
+			Msg("Env variable BADGERDB_VALUE_LOG_FILE_SIZE_MB is set.")
+		intValue, err := strconv.ParseInt(value, 10, 64)
+		if err != nil || intValue < 0 || intValue > 2<<24 {
+			return badger.Options{}, errors.New("invalid BADGERDB_VALUE_LOG_FILE_SIZE_MB env variable ")
+		}
+		intValue = intValue << 20
+		opts.ValueLogFileSize = intValue
+	}
+	if value, exists := os.LookupEnv("BADGERDB_BLOCK_CACHE_SIZE_MB"); exists {
+		logger.Info().Str("env", "BADGERDB_BLOCK_CACHE_SIZE_MB").Str("value", value).
+			Msg("Env variable BADGERDB_BLOCK_CACHE_SIZE_MB is set.")
+		intValue, err := strconv.ParseInt(value, 10, 64)
+		if err != nil || intValue < 0 || intValue > 2<<24 {
+			return badger.Options{}, errors.New("invalid BADGERDB_BLOCK_CACHE_SIZE_MB env variable ")
+		}
+		intValue = intValue << 20
+		opts.BlockCacheSize = intValue
+	}
+	if value, exists := os.LookupEnv("BADGERDB_VALUE_THRESHOLD"); exists {
+		logger.Info().Str("env", "BADGERDB_VALUE_THRESHOLD").Str("value", value).
+			Msg("Env variable BADGERDB_VALUE_THRESHOLD is set.")
+		intValue, err := strconv.ParseInt(value, 10, 64)
+		if err != nil || intValue < 0 || intValue > 2<<24 {
+			return badger.Options{}, errors.New("invalid BADGERDB_VALUE_THRESHOLD env variable ")
+		}
+		opts.ValueThreshold = intValue
+	}
+	if value, exists := os.LookupEnv("BADGERDB_NUM_COMPACTORS"); exists {
+		logger.Info().Str("env", "BADGERDB_NUM_COMPACTORS").Str("value", value).
+			Msg("Env variable BADGERDB_NUM_COMPACTORS is set.")
+		intValue, err := strconv.ParseInt(value, 10, 32)
+		if err != nil || intValue > 2<<16 {
+			return badger.Options{}, errors.New("invalid BADGERDB_NUM_COMPACTORS env variable ")
+		}
+		opts.NumCompactors = int(intValue)
+	}
+	if value, exists := os.LookupEnv("BADGERDB_BASE_TABLE"); exists {
+		logger.Info().Str("env", "BADGERDB_BASE_TABLE").Str("value", value).
+			Msg("Env variable BADGERDB_BASE_TABLE is set.")
+		intValue, err := strconv.ParseInt(value, 10, 64)
+		if err != nil || intValue < 0 || intValue > 2<<40 {
+			return badger.Options{}, errors.New("invalid BADGERDB_BASE_TABLE env variable ")
+		}
+		opts.BaseTableSize = intValue
+	}
+	if value, exists := os.LookupEnv("BADGERDB_MAX_LEVELS"); exists {
+		logger.Info().Str("env", "BADGERDB_MAX_LEVELS").Str("value", value).
+			Msg("Env variable BADGERDB_MAX_LEVELS is set.")
+		intValue, err := strconv.ParseInt(value, 10, 32)
+		if err != nil || intValue < 0 || intValue > 2<<8 {
+			return badger.Options{}, errors.New("invalid BADGERDB_MAX_LEVELS env variable ")
+		}
+		opts.MaxLevels = int(intValue)
+	}
+
+	opts.OnCompactionStart = func(event badger.CompactionEvent) {
+		logger.Info().Str("compaction", event.Reason).
+			Int("compaction level", event.Level).
+			Float64("compaction score", event.Adjusted).
+			Msg("Compaction Started ")
+	}
+	// limit subcompactors, otherwise badgerDB creates massive number of goroutines
+	// to do subcompaction at once (8~20+)
+	if value, exists := os.LookupEnv("BADGERDB_NUM_SUBCOMPACTORS"); exists {
+		logger.Info().Str("env", "BADGERDB_NUM_SUBCOMPACTORS").Str("value", value).
+			Msg("Env variable BADGERDB_NUM_SUBCOMPACTORS is set.")
+		intValue, err := strconv.ParseInt(value, 10, 32)
+		if err != nil || intValue > 2<<16 {
+			return badger.Options{}, errors.New("invalid BADGERDB_NUM_SUBCOMPACTORS env variable ")
+		}
+		opts.MaxParallelism = int(intValue)
+	}
+	return opts, nil
 }
 
 //=========================================================
@@ -538,6 +641,7 @@ func (transaction *badgerTransaction) Delete(key []byte) {
 
 func (transaction *badgerTransaction) Commit() {
 	writeStartT := time.Now()
+	// TODO commiting empty tx can cause memory leak in badgerdb v3, but we don't have effective walkaround for now. This bug was fixed at v4.3
 	err := transaction.tx.Commit()
 	writeEndT := time.Now()
 

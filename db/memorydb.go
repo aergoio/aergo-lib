@@ -182,9 +182,9 @@ func (transaction *memoryTransaction) Commit() {
 	defer transaction.txLock.Unlock()
 
 	if transaction.isDiscard {
-		panic("Commit after dicard tx is not allowed")
+		panic("Commit after discard tx is not allowed")
 	} else if transaction.isCommit {
-		panic("Commit occures two times")
+		panic("Commit occurs two times")
 	}
 
 	db := transaction.db
