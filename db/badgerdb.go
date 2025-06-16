@@ -126,9 +126,21 @@ func (cmpCtl *compactionController) levelsInfoHandler(c *gin.Context) {
 	})
 }
 
+func (cmpCtl *compactionController) maintenanceHandler(c *gin.Context) {
+	if cmpCtl.bdb.onCompaction != nil {
+		cmpCtl.bdb.onCompaction(CompactionEvent{
+			Level:     0,
+			Reason:    "maintenance",
+			NextLevel: 0,
+			Adjusted:  0,
+			Start:     true,
+		})
+	}
+	c.JSON(200, gin.H{"status": "maintenance mode invoked"})
+}
+
 func (cmpCtl *compactionController) run() {
 	hostPort := func(port int) string {
-		// Allow debug dump to access only from the local machine.
 		host := "0.0.0.0"
 		if port <= 0 {
 			port = defaultCompactionControllerPort
@@ -145,6 +157,7 @@ func (cmpCtl *compactionController) run() {
 	})
 	r.GET("/compaction/flatten", cmpCtl.flattenHandler)
 	r.GET("/compaction/info", cmpCtl.levelsInfoHandler)
+	r.GET("/maintenance", cmpCtl.maintenanceHandler)
 
 	if err := r.Run(hostPort(0)); err != nil {
 
