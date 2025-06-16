@@ -53,6 +53,9 @@ func (db *levelDB) Type() string {
 	return "leveldb"
 }
 
+func (db *levelDB) SetCompactionEvent(event CompactionEventHandler) {
+}
+
 func (db *levelDB) Set(key, value []byte) {
 	key = convNilToBytes(key)
 	value = convNilToBytes(value)

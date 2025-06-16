@@ -69,6 +69,9 @@ func (db *memorydb) Type() string {
 	return "memorydb"
 }
 
+func (db *memorydb) SetCompactionEvent(event CompactionEventHandler) {
+}
+
 func (db *memorydb) Set(key, value []byte) {
 	db.lock.Lock()
 	defer db.lock.Unlock()

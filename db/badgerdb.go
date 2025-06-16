@@ -39,11 +39,13 @@ const (
 
 // compaction controller interface
 type compactionController struct {
-	db *badger.DB
+	db  *badger.DB
+	bdb *badgerDB
 }
 
-func NewCompactionController(db *badger.DB) *compactionController {
-	return &compactionController{db: db}
+func NewCompactionController(bdb *badgerDB) *compactionController {
+	return &compactionController{db: bdb.db,
+		bdb: bdb}
 }
 
 func (cmpCtl *compactionController) Start() {
@@ -58,7 +60,29 @@ func (cmpCtl *compactionController) flattenHandler(c *gin.Context) {
 	}
 	defer atomic.StoreInt32(&isFlattening, 0)
 
+	// notify compaction event before starting flatten
+	if cmpCtl.bdb.onCompaction != nil {
+		cmpCtl.bdb.onCompaction(CompactionEvent{
+			Level:     0,
+			Reason:    "flatenning",
+			NextLevel: 0,
+			Adjusted:  0,
+			Start:     true,
+		})
+	}
+
 	err := cmpCtl.db.Flatten(4)
+	// notify compaction event after flatten
+	if cmpCtl.bdb.onCompaction != nil {
+		cmpCtl.bdb.onCompaction(CompactionEvent{
+			Level:     0,
+			Reason:    "flatenning",
+			NextLevel: 0,
+			Adjusted:  0,
+			Start:     false,
+		})
+	}
+
 	if err != nil {
 		c.JSON(500, gin.H{"error": err.Error()})
 		return
@@ -292,12 +316,25 @@ func newBadgerDB(dir string, opt ...Opt) (DB, error) {
 		}
 		opts.MaxLevels = int(intValue)
 	}
-	
-	opts.OnCompactionStart = func(event badger.CompactionEvent) {
-		logger.Info().Str("compaction", event.Reason).
-			Int("compaction level", event.Level).
-			Float64("compaction score", event.Adjusted).
-			Msg("Compaction Started ")
+
+	database := &badgerDB{
+		name:         dir,
+		discardRatio: dbDiscardRatio,
+		noGc:         noGc,
+	}
+
+	opts.OnCompaction = func(event badger.CompactionEvent) {
+		if database.onCompaction != nil {
+			database.onCompaction(CompactionEvent{
+				Level:     event.Level,
+				Reason:    event.Reason,
+				NextLevel: event.NextLevel,
+				Adjusted:  event.Adjusted,
+				LastLevel: event.LastLevel,
+				Start:     event.Start,
+			})
+		}
+
 	}
 	// limit subcompactors, otherwise badgerDB creates massive number of goroutines
 	// to do subcompaction at once (8~20+)
@@ -319,36 +356,14 @@ func newBadgerDB(dir string, opt ...Opt) (DB, error) {
 
 	ctx, cancelFunc := context.WithCancel(context.Background())
 
-	// FIXME: automatic flattening at load disabled to protect race condition
-	// if value, exists := os.LookupEnv("BADGERDB_FLATTEN"); exists {
-	// 	logger.Info().Str("env", "BADGERDB_FLATTEN").Str("workers", value).
-	// 		Msg("Env variable BADGERDB_FLATTEN is set. ")
-	// 	workers, err := strconv.ParseInt(value, 10, 64)
-	// 	if err != nil || workers < 0 || workers > 2<<16 {
-	// 		cancelFunc()
-	// 		return nil, errors.New("invalid BADGERDB_FLATTEN env variable ")
-	// 	}
-	// 	err = db.Flatten(int(workers))
-	// 	if err != nil {
-	// 		logger.Error().Err(err).Msg("Fail to flatten badger db")
-	// 		cancelFunc()
-	// 		return nil, err
-	// 	}
-	// }
-
-	database := &badgerDB{
-		db:           db,
-		ctx:          ctx,
-		cancelFunc:   cancelFunc,
-		name:         dir,
-		discardRatio: dbDiscardRatio,
-		noGc:         noGc,
-	}
+	database.db = db
+	database.ctx = ctx
+	database.cancelFunc = cancelFunc
 
 	// attach compaction controller with db
 	if cmpControllerEnabled {
 		logger.Info().Msg("Comapaction controller enabled")
-		cmpController := NewCompactionController(db)
+		cmpController := NewCompactionController(database)
 		cmpController.Start()
 	} else {
 		logger.Info().Msg("Comapaction controller not enabled")
@@ -373,11 +388,16 @@ type badgerDB struct {
 
 	discardRatio float64
 	noGc         bool
+	onCompaction CompactionEventHandler
 }
 
 // Type function returns a database type name
 func (db *badgerDB) Type() string {
 	return "badgerdb"
+}
+
+func (db *badgerDB) SetCompactionEvent(event CompactionEventHandler) {
+	db.onCompaction = event
 }
 
 func (db *badgerDB) Set(key, value []byte) {
