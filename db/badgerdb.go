@@ -39,13 +39,15 @@ const (
 
 // compaction controller interface
 type compactionController struct {
-	db  *badger.DB
-	bdb *badgerDB
+	db   *badger.DB
+	bdb  *badgerDB
+	port int
 }
 
-func NewCompactionController(bdb *badgerDB) *compactionController {
+func NewCompactionController(bdb *badgerDB, port int) *compactionController {
 	return &compactionController{db: bdb.db,
-		bdb: bdb}
+		bdb:  bdb,
+		port: port}
 }
 
 func (cmpCtl *compactionController) Start() {
@@ -159,7 +161,7 @@ func (cmpCtl *compactionController) run() {
 	r.GET("/compaction/info", cmpCtl.levelsInfoHandler)
 	r.GET("/maintenance", cmpCtl.maintenanceHandler)
 
-	if err := r.Run(hostPort(0)); err != nil {
+	if err := r.Run(hostPort(cmpCtl.port)); err != nil {
 
 		logger.Fatal().Err(err).Msg("failed to start compaction controller")
 	}
@@ -222,13 +224,17 @@ func (db *badgerDB) runBadgerGC() {
 func newBadgerDB(dir string, opt ...Opt) (DB, error) {
 	// internal configurations
 	var cmpControllerEnabled bool
+	var port int
 
 	for _, op := range opt {
 		if op.Name == "compactionController" {
 			if val, ok := op.Value.(bool); ok && val {
 				cmpControllerEnabled = true
 			}
-			break
+		} else if op.Name == "compactionControllerPort" {
+			if val, ok := op.Value.(int); ok {
+				port = val
+			}
 		}
 	}
 
@@ -384,8 +390,8 @@ func newBadgerDB(dir string, opt ...Opt) (DB, error) {
 
 	// attach compaction controller with db
 	if cmpControllerEnabled {
-		logger.Info().Msg("Comapaction controller enabled")
-		cmpController := NewCompactionController(database)
+		logger.Info().Int("port", port).Msg("Comapaction controller enabled")
+		cmpController := NewCompactionController(database, port)
 		cmpController.Start()
 	} else {
 		logger.Info().Msg("Comapaction controller not enabled")
