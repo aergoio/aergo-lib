@@ -96,6 +96,14 @@ func Test_badgerDB_CompactionController(t *testing.T) {
 				Name:  "compactionController",
 				Value: true,
 			})
+			got.SetCompactionEvent(func(event CompactionEvent) {
+				if event.Start {
+					fmt.Println("compaction at level", event.Level, "splits", event.NumSplits)
+				} else {
+					fmt.Println("compaction complete")
+				}
+
+			})
 
 			const count = 1000000000 // 수십만 건 insert
 			batch := got.NewBulk()
@@ -104,10 +112,12 @@ func Test_badgerDB_CompactionController(t *testing.T) {
 				val := []byte(fmt.Sprintf("value-%d", i))
 				batch.Set(key, val)
 
-				if i%100000 == 0 {
+				if i%10000 == 0 {
 					batch.Flush()
 					batch = got.NewBulk()
-					fmt.Println("flushing", i)
+				}
+				if i%1000000 == 0 {
+					fmt.Println("flushed", i)
 				}
 			}
 			batch.Flush()

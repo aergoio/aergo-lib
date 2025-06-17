@@ -360,6 +360,15 @@ func newBadgerDB(dir string, opt ...Opt) (DB, error) {
 		}
 		opts.MaxParallelism = int(intValue)
 	}
+	if value, exists := os.LookupEnv("BADGERDB_NUM_SUBCOMPACTOR_WRITER"); exists {
+		logger.Info().Str("env", "BADGERDB_NUM_SUBCOMPACTOR_WRITER").Str("value", value).
+			Msg("Env variable BADGERDB_NUM_SUBCOMPACTOR_WRITER is set.")
+		intValue, err := strconv.ParseInt(value, 10, 32)
+		if err != nil || intValue > 2<<16 {
+			return nil, errors.New("invalid BADGERDB_NUM_SUBCOMPACTOR_WRITER env variable ")
+		}
+		opts.MaxCreateTableParallelism = int(intValue)
+	}
 
 	// open badger db
 	db, err := badger.Open(opts)
