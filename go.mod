@@ -21,4 +21,4 @@ require (
 	github.com/syndtr/goleveldb v1.0.0
 )
 
-replace github.com/dgraph-io/badger/v3 => github.com/shepelt/badger/v3 v3.2104.3
+replace github.com/dgraph-io/badger/v3 => github.com/shepelt/badger/v3 v3.2104.4

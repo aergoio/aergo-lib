@@ -351,6 +351,7 @@ func newBadgerDB(dir string, opt ...Opt) (DB, error) {
 				Adjusted:  event.Adjusted,
 				LastLevel: event.LastLevel,
 				Start:     event.Start,
+				NumSplits: event.NumSplits,
 			})
 		}
 
@@ -373,7 +374,7 @@ func newBadgerDB(dir string, opt ...Opt) (DB, error) {
 		if err != nil || intValue > 2<<16 {
 			return nil, errors.New("invalid BADGERDB_NUM_SUBCOMPACTOR_WRITER env variable ")
 		}
-		opts.MaxCreateTableParallelism = int(intValue)
+		opts.MaxSplits = float64(intValue)
 	}
 
 	// open badger db
