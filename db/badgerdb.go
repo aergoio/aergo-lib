@@ -376,6 +376,24 @@ func newBadgerDB(dir string, opt ...Opt) (DB, error) {
 		}
 		opts.MaxSplits = float64(intValue)
 	}
+	if value, exists := os.LookupEnv("BADGERDB_THROTTLING_INTERVAL"); exists {
+		logger.Info().Str("env", "BADGERDB_THROTTLING_INTERVAL").Str("value", value).
+			Msg("Env variable BADGERDB_THROTTLING_INTERVAL is set.")
+		intValue, err := strconv.ParseInt(value, 10, 32)
+		if err != nil || intValue > 2<<16 {
+			return nil, errors.New("invalid BADGERDB_THROTTLING_INTERVAL env variable ")
+		}
+		opts.ThrottlingInterval = intValue
+	}
+	if value, exists := os.LookupEnv("BADGERDB_THROTTLING_SLEEP"); exists {
+		logger.Info().Str("env", "BADGERDB_THROTTLING_SLEEP").Str("value", value).
+			Msg("Env variable BADGERDB_THROTTLING_SLEEP is set.")
+		intValue, err := strconv.ParseInt(value, 10, 32)
+		if err != nil || intValue > 2<<16 {
+			return nil, errors.New("invalid BADGERDB_THROTTLING_SLEEP env variable ")
+		}
+		opts.ThrottlingSleepDuration = intValue
+	}
 
 	// open badger db
 	db, err := badger.Open(opts)
