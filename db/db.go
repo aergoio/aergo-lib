@@ -74,10 +74,10 @@ func registerDBConstructor(dbimpl ImplType, constructor dbConstructor) {
 }
 
 // NewDB creates new database or load existing database in the directory
-func NewDB(dbimpltype ImplType, dir string) DB {
+func NewDB(dbimpltype ImplType, dir string, options ...Opt) DB {
 	// The default wrapper need 3 frames and badger wrapper need 1 frame to show actual stack trace.
 	logger = newBadgerExtendedLog(log.NewLogger("db"))
-	db, err := dbImpls[dbimpltype](dir)
+	db, err := dbImpls[dbimpltype](dir, options...)
 
 	if err != nil {
 		panic(fmt.Sprintf("Fail to Create New DB: %v", err))
@@ -91,4 +91,15 @@ func convNilToBytes(byteArray []byte) []byte {
 		return []byte{}
 	}
 	return byteArray
+}
+
+// Opt refers to an option item applied to DB initialization. The detailed option types vary depending on
+// the DB implementation, and it is the caller's responsibility to set the correct options.
+type Opt struct {
+	Name  string
+	Value interface{}
+}
+
+func (o Opt) String() string {
+	return fmt.Sprintf("%s=%v", o.Name, o.Value)
 }

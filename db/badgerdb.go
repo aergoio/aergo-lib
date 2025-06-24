@@ -8,29 +8,179 @@ package db
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
+	"net"
+	"os"
+	"strconv"
+	"sync/atomic"
 	"time"
+
+	"github.com/dgraph-io/badger/v3/options"
+
+	"github.com/gin-gonic/gin"
 
 	"github.com/aergoio/aergo-lib/log"
 	"github.com/dgraph-io/badger/v3"
 )
 
 const (
-	badgerDbDiscardRatio   = 0.5 // run gc when 50% of samples can be collected
-	badgerDbGcInterval     = 10 * time.Minute
-	badgerDbGcSize         = 1 << 20 // 1 MB
-	badgerValueLogFileSize = 1 << 26
+	badgerDbDiscardRatio            = 0.5 // run gc when 50% of samples can be collected
+	badgerDbGcInterval              = 10 * time.Minute
+	badgerDbGcSize                  = 1 << 20 // 1 MB
+	badgerValueLogFileSize          = 1 << 26
+	badgerValueThreshold            = 1024
+	defaultCompactionControllerPort = 17091
 )
+
+const (
+	OptBadgerValueThreshold = "ValueThreshold"
+)
+
+// compaction controller interface
+type compactionController struct {
+	db   *badger.DB
+	bdb  *badgerDB
+	port int
+}
+
+func NewCompactionController(bdb *badgerDB, port int) *compactionController {
+	return &compactionController{db: bdb.db,
+		bdb:  bdb,
+		port: port}
+}
+
+func (cmpCtl *compactionController) Start() {
+	go cmpCtl.run()
+}
+
+var isFlattening int32 = 0 // atomic flag
+func (cmpCtl *compactionController) flattenHandler(c *gin.Context) {
+	if !atomic.CompareAndSwapInt32(&isFlattening, 0, 1) {
+		c.JSON(429, gin.H{"error": "Flatten already in progress"})
+		return
+	}
+	defer atomic.StoreInt32(&isFlattening, 0)
+
+	// notify compaction event before starting flatten
+	if cmpCtl.bdb.onCompaction != nil {
+		cmpCtl.bdb.onCompaction(CompactionEvent{
+			Level:     0,
+			Reason:    "flatenning",
+			NextLevel: 0,
+			Adjusted:  0,
+			Start:     true,
+		})
+	}
+
+	err := cmpCtl.db.Flatten(4)
+	// notify compaction event after flatten
+	if cmpCtl.bdb.onCompaction != nil {
+		cmpCtl.bdb.onCompaction(CompactionEvent{
+			Level:     0,
+			Reason:    "flatenning",
+			NextLevel: 0,
+			Adjusted:  0,
+			Start:     false,
+		})
+	}
+
+	if err != nil {
+		c.JSON(500, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(200, gin.H{"status": "flatten completed"})
+}
+
+func (cmpCtl *compactionController) levelsInfoHandler(c *gin.Context) {
+	infos := cmpCtl.db.Levels()
+
+	type level struct {
+		Level       int     `json:"level"`
+		NumTables   int     `json:"num_tables"`
+		SizeMB      float64 `json:"size_mb"`
+		TargetMB    float64 `json:"target_size_mb"`
+		FileMB      float64 `json:"target_file_size_mb"`
+		IsBaseLevel bool    `json:"is_base_level"`
+		Score       float64 `json:"score"`
+		Adjusted    float64 `json:"adjusted"`
+		StaleDataMB float64 `json:"stale_data_mb"`
+	}
+
+	var levels []level
+	for _, info := range infos {
+		levels = append(levels, level{
+			Level:       info.Level,
+			NumTables:   info.NumTables,
+			SizeMB:      float64(info.Size) / (1 << 20),
+			TargetMB:    float64(info.TargetSize) / (1 << 20),
+			FileMB:      float64(info.TargetFileSize) / (1 << 20),
+			IsBaseLevel: info.IsBaseLevel,
+			Score:       info.Score,
+			Adjusted:    info.Adjusted,
+			StaleDataMB: float64(info.StaleDatSize) / (1 << 20),
+		})
+	}
+
+	c.JSON(200, gin.H{
+		"levels": levels,
+	})
+}
+
+func (cmpCtl *compactionController) maintenanceHandler(c *gin.Context) {
+	if cmpCtl.bdb.onCompaction != nil {
+		cmpCtl.bdb.onCompaction(CompactionEvent{
+			Level:     0,
+			Reason:    "maintenance",
+			NextLevel: 0,
+			Adjusted:  0,
+			Start:     true,
+		})
+	}
+	c.JSON(200, gin.H{"status": "maintenance mode invoked"})
+}
+
+func (cmpCtl *compactionController) run() {
+	hostPort := func(port int) string {
+		host := "0.0.0.0"
+		if port <= 0 {
+			port = defaultCompactionControllerPort
+		}
+		return net.JoinHostPort(host, fmt.Sprintf("%d", port))
+	}
+
+	r := gin.Default()
+
+	// Dump the top n rankers.
+	r.GET("/compaction", func(c *gin.Context) {
+		c.Header("Content-Type", "application/json; charset=utf-8")
+		c.String(200, "compaction controller")
+	})
+	r.GET("/compaction/flatten", cmpCtl.flattenHandler)
+	r.GET("/compaction/info", cmpCtl.levelsInfoHandler)
+	r.GET("/maintenance", cmpCtl.maintenanceHandler)
+
+	if err := r.Run(hostPort(cmpCtl.port)); err != nil {
+
+		logger.Fatal().Err(err).Msg("failed to start compaction controller")
+	}
+}
 
 // This function is always called first
 func init() {
-	dbConstructor := func(dir string) (DB, error) {
-		return newBadgerDB(dir)
+	dbConstructor := func(dir string, opts ...Opt) (DB, error) {
+		return newBadgerDB(dir, opts...)
 	}
 	registerDBConstructor(BadgerImpl, dbConstructor)
 }
 
 func (db *badgerDB) runBadgerGC() {
+	if db.noGc {
+		logger.Info().Str("name", db.name).Msg("Skipping Badger GC by configuration")
+		return
+	}
+
 	ticker := time.NewTicker(1 * time.Minute)
 
 	lastGcT := time.Now()
@@ -45,7 +195,7 @@ func (db *badgerDB) runBadgerGC() {
 			if time.Now().Sub(lastGcT) > badgerDbGcInterval || lastDbVlogSize+badgerDbGcSize > currentDbVlogSize {
 				startGcT := time.Now()
 				logger.Debug().Str("name", db.name).Int64("lsmSize", currentDblsmSize).Int64("vlogSize", currentDbVlogSize).Msg("Start to GC at badger")
-				err := db.db.RunValueLogGC(badgerDbDiscardRatio)
+				err := db.db.RunValueLogGC(db.discardRatio)
 				if err != nil {
 					if err == badger.ErrNoRewrite {
 						logger.Debug().Str("name", db.name).Str("msg", err.Error()).Msg("Nothing to GC at badger")
@@ -71,7 +221,40 @@ func (db *badgerDB) runBadgerGC() {
 
 // newBadgerDB create a DB instance that uses badger db and implements DB interface.
 // An input parameter, dir, is a root directory to store db files.
-func newBadgerDB(dir string) (DB, error) {
+func newBadgerDB(dir string, opt ...Opt) (DB, error) {
+	// internal configurations
+	var cmpControllerEnabled bool
+	var port int
+
+	for _, op := range opt {
+		if op.Name == "compactionController" {
+			if val, ok := op.Value.(bool); ok && val {
+				cmpControllerEnabled = true
+			}
+		} else if op.Name == "compactionControllerPort" {
+			if val, ok := op.Value.(int); ok {
+				port = val
+			}
+		}
+	}
+
+	var dbDiscardRatio = badgerDbDiscardRatio
+	var err error
+	if value, exists := os.LookupEnv("BADGERDB_DISCARD_RATIO"); exists {
+		logger.Info().Str("env", "BADGERDB_DISCARD_RATIO").Str("value", value).
+			Msg("Env variable BADGERDB_DISCARD_RATIO is set.")
+		dbDiscardRatio, err = strconv.ParseFloat(value, 64)
+		if err != nil {
+			return nil, errors.New("invalid BADGERDB_DISCARD_RATIO env variable ")
+		}
+	}
+	var noGc = false
+	if _, exists := os.LookupEnv("BADGERDB_NO_GC"); exists {
+		logger.Info().Str("env", "BADGERDB_NO_GC").
+			Msg("Env variable BADGERDB_NO_GC is set.")
+		noGc = true
+	}
+
 	// set option file
 	opts := badger.DefaultOptions(dir)
 
@@ -80,16 +263,137 @@ func newBadgerDB(dir string) (DB, error) {
 	// *** BadgerDB v3 no longer supports FileIO option. To fix build, the related lines are commented out. ***
 	// opts.ValueLogLoadingMode = options.FileIO
 	// opts.TableLoadingMode = options.FileIO
-	opts.ValueThreshold = 1024 // store values, whose size is smaller than 1k, to a lsm tree -> to invoke flushing memtable
+	// store values, whose size is smaller than 1k, to a lsm tree -> to invoke flushing memtable
+	opts.ValueThreshold = badgerValueThreshold
 
-	// to reduce size of value log file for low throughtput of cloud; 1GB -> 64 MB
+	// to reduce size of value log file for low throughput of cloud; 1GB -> 64 MB
 	// Time to read or write 1GB file in cloud (normal disk, not high provisioned) takes almost 20 seconds for GC
 	opts.ValueLogFileSize = badgerValueLogFileSize
-
 	//opts.MaxTableSize = 1 << 20 // 2 ^ 20 = 1048576, max mempool size invokes updating vlog header for gc
 
 	// set aergo-lib logger instead of default badger stderr logger
 	opts.Logger = logger
+
+	if _, exists := os.LookupEnv("BADGERDB_NO_COMPRESSION"); exists {
+		logger.Info().Str("env", "BADGERDB_NO_COMPRESSION").
+			Msg("Env variable BADGERDB_NO_COMPRESSION is set.")
+		opts.Compression = options.None
+	}
+	if value, exists := os.LookupEnv("BADGERDB_VALUE_LOG_FILE_SIZE_MB"); exists {
+		logger.Info().Str("env", "BADGERDB_VALUE_LOG_FILE_SIZE_MB").Str("value", value).
+			Msg("Env variable BADGERDB_VALUE_LOG_FILE_SIZE_MB is set.")
+		intValue, err := strconv.ParseInt(value, 10, 64)
+		if err != nil || intValue < 0 || intValue > 2<<24 {
+			return nil, errors.New("invalid BADGERDB_VALUE_LOG_FILE_SIZE_MB env variable ")
+		}
+		intValue = intValue << 20
+		opts.ValueLogFileSize = intValue
+	}
+	if value, exists := os.LookupEnv("BADGERDB_BLOCK_CACHE_SIZE_MB"); exists {
+		logger.Info().Str("env", "BADGERDB_BLOCK_CACHE_SIZE_MB").Str("value", value).
+			Msg("Env variable BADGERDB_BLOCK_CACHE_SIZE_MB is set.")
+		intValue, err := strconv.ParseInt(value, 10, 64)
+		if err != nil || intValue < 0 || intValue > 2<<24 {
+			return nil, errors.New("invalid BADGERDB_BLOCK_CACHE_SIZE_MB env variable ")
+		}
+		intValue = intValue << 20
+		opts.BlockCacheSize = intValue
+	}
+	if value, exists := os.LookupEnv("BADGERDB_VALUE_THRESHOLD"); exists {
+		logger.Info().Str("env", "BADGERDB_VALUE_THRESHOLD").Str("value", value).
+			Msg("Env variable BADGERDB_VALUE_THRESHOLD is set.")
+		intValue, err := strconv.ParseInt(value, 10, 64)
+		if err != nil || intValue < 0 || intValue > 2<<24 {
+			return nil, errors.New("invalid BADGERDB_VALUE_THRESHOLD env variable ")
+		}
+		opts.ValueThreshold = intValue
+	}
+	if value, exists := os.LookupEnv("BADGERDB_NUM_COMPACTORS"); exists {
+		logger.Info().Str("env", "BADGERDB_NUM_COMPACTORS").Str("value", value).
+			Msg("Env variable BADGERDB_NUM_COMPACTORS is set.")
+		intValue, err := strconv.ParseInt(value, 10, 32)
+		if err != nil || intValue > 2<<16 {
+			return nil, errors.New("invalid BADGERDB_NUM_COMPACTORS env variable ")
+		}
+		opts.NumCompactors = int(intValue)
+	}
+	if value, exists := os.LookupEnv("BADGERDB_BASE_TABLE"); exists {
+		logger.Info().Str("env", "BADGERDB_BASE_TABLE").Str("value", value).
+			Msg("Env variable BADGERDB_BASE_TABLE is set.")
+		intValue, err := strconv.ParseInt(value, 10, 64)
+		if err != nil || intValue < 0 || intValue > 2<<40 {
+			return nil, errors.New("invalid BADGERDB_BASE_TABLE env variable ")
+		}
+		opts.BaseTableSize = intValue
+	}
+	if value, exists := os.LookupEnv("BADGERDB_MAX_LEVELS"); exists {
+		logger.Info().Str("env", "BADGERDB_MAX_LEVELS").Str("value", value).
+			Msg("Env variable BADGERDB_MAX_LEVELS is set.")
+		intValue, err := strconv.ParseInt(value, 10, 32)
+		if err != nil || intValue < 0 || intValue > 2<<8 {
+			return nil, errors.New("invalid BADGERDB_MAX_LEVELS env variable ")
+		}
+		opts.MaxLevels = int(intValue)
+	}
+
+	database := &badgerDB{
+		name:         dir,
+		discardRatio: dbDiscardRatio,
+		noGc:         noGc,
+	}
+
+	opts.OnCompaction = func(event badger.CompactionEvent) {
+		if database.onCompaction != nil {
+			database.onCompaction(CompactionEvent{
+				Level:     event.Level,
+				Reason:    event.Reason,
+				NextLevel: event.NextLevel,
+				Adjusted:  event.Adjusted,
+				LastLevel: event.LastLevel,
+				Start:     event.Start,
+				NumSplits: event.NumSplits,
+			})
+		}
+
+	}
+	// limit subcompactors, otherwise badgerDB creates massive number of goroutines
+	// to do subcompaction at once (8~20+)
+	if value, exists := os.LookupEnv("BADGERDB_NUM_SUBCOMPACTORS"); exists {
+		logger.Info().Str("env", "BADGERDB_NUM_SUBCOMPACTORS").Str("value", value).
+			Msg("Env variable BADGERDB_NUM_SUBCOMPACTORS is set.")
+		intValue, err := strconv.ParseInt(value, 10, 32)
+		if err != nil || intValue > 2<<16 {
+			return nil, errors.New("invalid BADGERDB_NUM_SUBCOMPACTORS env variable ")
+		}
+		opts.MaxParallelism = int(intValue)
+	}
+	if value, exists := os.LookupEnv("BADGERDB_NUM_SUBCOMPACTOR_WRITER"); exists {
+		logger.Info().Str("env", "BADGERDB_NUM_SUBCOMPACTOR_WRITER").Str("value", value).
+			Msg("Env variable BADGERDB_NUM_SUBCOMPACTOR_WRITER is set.")
+		intValue, err := strconv.ParseInt(value, 10, 32)
+		if err != nil || intValue > 2<<16 {
+			return nil, errors.New("invalid BADGERDB_NUM_SUBCOMPACTOR_WRITER env variable ")
+		}
+		opts.MaxSplits = float64(intValue)
+	}
+	if value, exists := os.LookupEnv("BADGERDB_THROTTLING_INTERVAL"); exists {
+		logger.Info().Str("env", "BADGERDB_THROTTLING_INTERVAL").Str("value", value).
+			Msg("Env variable BADGERDB_THROTTLING_INTERVAL is set.")
+		intValue, err := strconv.ParseInt(value, 10, 32)
+		if err != nil || intValue > 2<<16 {
+			return nil, errors.New("invalid BADGERDB_THROTTLING_INTERVAL env variable ")
+		}
+		opts.ThrottlingInterval = intValue
+	}
+	if value, exists := os.LookupEnv("BADGERDB_THROTTLING_SLEEP"); exists {
+		logger.Info().Str("env", "BADGERDB_THROTTLING_SLEEP").Str("value", value).
+			Msg("Env variable BADGERDB_THROTTLING_SLEEP is set.")
+		intValue, err := strconv.ParseInt(value, 10, 32)
+		if err != nil || intValue > 2<<16 {
+			return nil, errors.New("invalid BADGERDB_THROTTLING_SLEEP env variable ")
+		}
+		opts.ThrottlingSleepDuration = intValue
+	}
 
 	// open badger db
 	db, err := badger.Open(opts)
@@ -99,15 +403,20 @@ func newBadgerDB(dir string) (DB, error) {
 
 	ctx, cancelFunc := context.WithCancel(context.Background())
 
-	database := &badgerDB{
-		db:         db,
-		ctx:        ctx,
-		cancelFunc: cancelFunc,
-		name:       dir,
+	database.db = db
+	database.ctx = ctx
+	database.cancelFunc = cancelFunc
+
+	// attach compaction controller with db
+	if cmpControllerEnabled {
+		logger.Info().Int("port", port).Msg("Comapaction controller enabled")
+		cmpController := NewCompactionController(database, port)
+		cmpController.Start()
+	} else {
+		logger.Info().Msg("Comapaction controller not enabled")
 	}
 
 	go database.runBadgerGC()
-
 	return database, nil
 }
 
@@ -123,11 +432,19 @@ type badgerDB struct {
 	ctx        context.Context
 	cancelFunc context.CancelFunc
 	name       string
+
+	discardRatio float64
+	noGc         bool
+	onCompaction CompactionEventHandler
 }
 
 // Type function returns a database type name
 func (db *badgerDB) Type() string {
 	return "badgerdb"
+}
+
+func (db *badgerDB) SetCompactionEvent(event CompactionEventHandler) {
+	db.onCompaction = event
 }
 
 func (db *badgerDB) Set(key, value []byte) {

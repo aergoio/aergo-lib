@@ -5,6 +5,8 @@
 
 package db
 
+import "time"
+
 // ImplType represents implementators of a DB interface
 type ImplType string
 
@@ -19,7 +21,7 @@ const (
 	MemoryImpl ImplType = "memorydb"
 )
 
-type dbConstructor func(dir string) (DB, error)
+type dbConstructor func(dir string, options ...Opt) (DB, error)
 
 // DB is an general interface to access at storage data
 type DB interface {
@@ -32,9 +34,28 @@ type DB interface {
 	NewTx() Transaction
 	NewBulk() Bulk
 	Close()
+	SetCompactionEvent(event CompactionEventHandler)
 	//Print()
 	//Stats() map[string]string
 }
+
+type CompactionEvent struct {
+	Level       int
+	NextLevel   int
+	LastLevel   int
+	NumSplits   int
+	TopTables   []uint64
+	BotTables   []uint64
+	CompactorID int
+	Adjusted    float64
+	Score       float64
+	Timestamp   time.Time
+	Reason      string
+	Parallelism int
+	Start       bool
+}
+
+type CompactionEventHandler func(event CompactionEvent)
 
 // Transaction is used to batch multiple operations
 type Transaction interface {
