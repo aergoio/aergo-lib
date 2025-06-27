@@ -285,7 +285,7 @@ func newBadgerDB(dir string, opt ...Opt) (DB, error) {
 	//opts.MaxTableSize = 1 << 20 // 2 ^ 20 = 1048576, max mempool size invokes updating vlog header for gc
 
 	// The default max level of original badgerDB is 7, but it can make panic on excessive data size
-	// opts.MaxLevels = badgerMaxLevel
+	opts.MaxLevels = badgerMaxLevel
 
 	// set aergo-lib logger instead of default badger stderr logger
 	opts.Logger = logger
