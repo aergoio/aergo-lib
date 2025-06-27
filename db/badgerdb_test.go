@@ -3,7 +3,7 @@ package db
 import (
 	"flag"
 	"fmt"
-	"io/ioutil"
+	"github.com/aergoio/aergo-lib/log"
 	"net/http"
 	"os"
 	"path"
@@ -14,7 +14,7 @@ import (
 )
 
 func Test_newBadgerDB(t *testing.T) {
-	tmpDir, err := ioutil.TempDir("", "badgerdb-test-*")
+	tmpDir, err := os.MkdirTemp("", "badgerdb-test-*")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -44,7 +44,10 @@ func Test_newBadgerDB(t *testing.T) {
 }
 
 func Test_badgerDB_EnvSet(t *testing.T) {
-	tmpDir, err := ioutil.TempDir("", "badgerdb-test-*")
+	tmpDir, err := os.MkdirTemp("", "badgerdb-test-*")
+
+	enableConfigure = true
+
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -160,6 +163,78 @@ func Test_badgerDB_CompactionController(t *testing.T) {
 			fmt.Println(resp)
 
 			defer got.Close()
+		})
+	}
+}
+
+func Test_readEnvInt64Value(t *testing.T) {
+	if logger == nil {
+		logger = newBadgerExtendedLog(log.NewLogger("db"))
+	}
+
+	type args struct {
+		envName    string
+		envValue   int64
+		lowerLimit int64
+		upperLimit int64
+	}
+	tests := []struct {
+		name    string
+		args    args
+		wantErr bool
+	}{
+		{"normal", args{"BADGER_MAX", 15, 4, 20}, false},
+		{"tooLow", args{"BADGER_MAX", 1, 4, 20}, true},
+		{"tooHigh", args{"BADGER_MAX", 21, 4, 20}, true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := os.Setenv(tt.args.envName, fmt.Sprintf("%d", tt.args.envValue))
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer func() {
+				_ = os.Unsetenv(tt.args.envName)
+			}()
+			var actual int64 = -1
+			err = readEnvInt64Value(tt.args.envName, tt.args.lowerLimit, tt.args.upperLimit, &actual)
+			if tt.wantErr != (err != nil) {
+				t.Error("wantErr != (err != nil)")
+			} else if !tt.wantErr {
+				assert.Equal(t, tt.args.envValue, actual, fmt.Sprintf("readEnvInt64Value(%v, %v, %v, %v)", tt.args.envName, tt.args.lowerLimit, tt.args.upperLimit, actual))
+			}
+		})
+	}
+}
+
+func Test_readEnvInt64ValueShift(t *testing.T) {
+	if logger == nil {
+		logger = newBadgerExtendedLog(log.NewLogger("db"))
+	}
+	// 0b10010
+	os.Setenv("BADGER_MAX", fmt.Sprintf("%d", 18))
+	defer func() {
+		_ = os.Unsetenv("BADGER_MAX")
+	}()
+	tests := []struct {
+		name  string
+		shift int
+		want  int64
+	}{
+		{"noshift", 0, 18},
+		{"positive", 1, 36},
+		{"negative", -1, 9},
+		{"negative2", -2, 4},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var actual int64 = -1
+			err := readEnvInt64ValueShift("BADGER_MAX", 1, 20, &actual, tt.shift)
+			if err != nil {
+				t.Errorf("want no error but got error: %v", err)
+			}
+			assert.Equal(t, tt.want, actual)
+
 		})
 	}
 }

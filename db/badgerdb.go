@@ -25,16 +25,23 @@ import (
 )
 
 const (
-	badgerDbDiscardRatio            = 0.5 // run gc when 50% of samples can be collected
-	badgerDbGcInterval              = 10 * time.Minute
-	badgerDbGcSize                  = 1 << 20 // 1 MB
-	badgerValueLogFileSize          = 1 << 26
-	badgerValueThreshold            = 1024
+	badgerDbDiscardRatio   = 0.5 // run gc when 50% of samples can be collected
+	badgerDbGcInterval     = 10 * time.Minute
+	badgerDbGcSize         = 1 << 20 // 1 MB
+	badgerValueLogFileSize = 1 << 26
+	badgerValueThreshold   = 1024
+	// The default max level will be increased from 7 to 8 after aergosvr 2.8.0
+	badgerMaxLevel                  = 8
 	defaultCompactionControllerPort = 17091
 )
 
 const (
 	OptBadgerValueThreshold = "ValueThreshold"
+)
+
+var (
+	// enableConfigure determines allow db configuration by env variables or not.
+	enableConfigure bool
 )
 
 // compaction controller interface
@@ -235,24 +242,30 @@ func newBadgerDB(dir string, opt ...Opt) (DB, error) {
 			if val, ok := op.Value.(int); ok {
 				port = val
 			}
+		} else if op.Name == "enableConfigure" {
+			if val, ok := op.Value.(bool); ok && val {
+				enableConfigure = true
+			}
 		}
 	}
 
 	var dbDiscardRatio = badgerDbDiscardRatio
 	var err error
-	if value, exists := os.LookupEnv("BADGERDB_DISCARD_RATIO"); exists {
-		logger.Info().Str("env", "BADGERDB_DISCARD_RATIO").Str("value", value).
-			Msg("Env variable BADGERDB_DISCARD_RATIO is set.")
-		dbDiscardRatio, err = strconv.ParseFloat(value, 64)
-		if err != nil {
-			return nil, errors.New("invalid BADGERDB_DISCARD_RATIO env variable ")
-		}
-	}
 	var noGc = false
-	if _, exists := os.LookupEnv("BADGERDB_NO_GC"); exists {
-		logger.Info().Str("env", "BADGERDB_NO_GC").
-			Msg("Env variable BADGERDB_NO_GC is set.")
-		noGc = true
+	if enableConfigure {
+		if value, exists := os.LookupEnv("BADGERDB_DISCARD_RATIO"); exists {
+			logger.Info().Str("env", "BADGERDB_DISCARD_RATIO").Str("value", value).
+				Msg("Env variable BADGERDB_DISCARD_RATIO is set.")
+			dbDiscardRatio, err = strconv.ParseFloat(value, 64)
+			if err != nil {
+				return nil, errors.New("invalid BADGERDB_DISCARD_RATIO env variable ")
+			}
+		}
+		if _, exists := os.LookupEnv("BADGERDB_NO_GC"); exists {
+			logger.Info().Str("env", "BADGERDB_NO_GC").
+				Msg("Env variable BADGERDB_NO_GC is set.")
+			noGc = true
+		}
 	}
 
 	// set option file
@@ -271,69 +284,16 @@ func newBadgerDB(dir string, opt ...Opt) (DB, error) {
 	opts.ValueLogFileSize = badgerValueLogFileSize
 	//opts.MaxTableSize = 1 << 20 // 2 ^ 20 = 1048576, max mempool size invokes updating vlog header for gc
 
+	// The default max level of original badgerDB is 7, but it can make panic on excessive data size
+	// opts.MaxLevels = badgerMaxLevel
+
 	// set aergo-lib logger instead of default badger stderr logger
 	opts.Logger = logger
 
-	if _, exists := os.LookupEnv("BADGERDB_NO_COMPRESSION"); exists {
-		logger.Info().Str("env", "BADGERDB_NO_COMPRESSION").
-			Msg("Env variable BADGERDB_NO_COMPRESSION is set.")
-		opts.Compression = options.None
-	}
-	if value, exists := os.LookupEnv("BADGERDB_VALUE_LOG_FILE_SIZE_MB"); exists {
-		logger.Info().Str("env", "BADGERDB_VALUE_LOG_FILE_SIZE_MB").Str("value", value).
-			Msg("Env variable BADGERDB_VALUE_LOG_FILE_SIZE_MB is set.")
-		intValue, err := strconv.ParseInt(value, 10, 64)
-		if err != nil || intValue < 0 || intValue > 2<<24 {
-			return nil, errors.New("invalid BADGERDB_VALUE_LOG_FILE_SIZE_MB env variable ")
+	if enableConfigure {
+		if err = configureOptions(&opts); err != nil {
+			return nil, err
 		}
-		intValue = intValue << 20
-		opts.ValueLogFileSize = intValue
-	}
-	if value, exists := os.LookupEnv("BADGERDB_BLOCK_CACHE_SIZE_MB"); exists {
-		logger.Info().Str("env", "BADGERDB_BLOCK_CACHE_SIZE_MB").Str("value", value).
-			Msg("Env variable BADGERDB_BLOCK_CACHE_SIZE_MB is set.")
-		intValue, err := strconv.ParseInt(value, 10, 64)
-		if err != nil || intValue < 0 || intValue > 2<<24 {
-			return nil, errors.New("invalid BADGERDB_BLOCK_CACHE_SIZE_MB env variable ")
-		}
-		intValue = intValue << 20
-		opts.BlockCacheSize = intValue
-	}
-	if value, exists := os.LookupEnv("BADGERDB_VALUE_THRESHOLD"); exists {
-		logger.Info().Str("env", "BADGERDB_VALUE_THRESHOLD").Str("value", value).
-			Msg("Env variable BADGERDB_VALUE_THRESHOLD is set.")
-		intValue, err := strconv.ParseInt(value, 10, 64)
-		if err != nil || intValue < 0 || intValue > 2<<24 {
-			return nil, errors.New("invalid BADGERDB_VALUE_THRESHOLD env variable ")
-		}
-		opts.ValueThreshold = intValue
-	}
-	if value, exists := os.LookupEnv("BADGERDB_NUM_COMPACTORS"); exists {
-		logger.Info().Str("env", "BADGERDB_NUM_COMPACTORS").Str("value", value).
-			Msg("Env variable BADGERDB_NUM_COMPACTORS is set.")
-		intValue, err := strconv.ParseInt(value, 10, 32)
-		if err != nil || intValue > 2<<16 {
-			return nil, errors.New("invalid BADGERDB_NUM_COMPACTORS env variable ")
-		}
-		opts.NumCompactors = int(intValue)
-	}
-	if value, exists := os.LookupEnv("BADGERDB_BASE_TABLE"); exists {
-		logger.Info().Str("env", "BADGERDB_BASE_TABLE").Str("value", value).
-			Msg("Env variable BADGERDB_BASE_TABLE is set.")
-		intValue, err := strconv.ParseInt(value, 10, 64)
-		if err != nil || intValue < 0 || intValue > 2<<40 {
-			return nil, errors.New("invalid BADGERDB_BASE_TABLE env variable ")
-		}
-		opts.BaseTableSize = intValue
-	}
-	if value, exists := os.LookupEnv("BADGERDB_MAX_LEVELS"); exists {
-		logger.Info().Str("env", "BADGERDB_MAX_LEVELS").Str("value", value).
-			Msg("Env variable BADGERDB_MAX_LEVELS is set.")
-		intValue, err := strconv.ParseInt(value, 10, 32)
-		if err != nil || intValue < 0 || intValue > 2<<8 {
-			return nil, errors.New("invalid BADGERDB_MAX_LEVELS env variable ")
-		}
-		opts.MaxLevels = int(intValue)
 	}
 
 	database := &badgerDB{
@@ -356,48 +316,15 @@ func newBadgerDB(dir string, opt ...Opt) (DB, error) {
 		}
 
 	}
-	// limit subcompactors, otherwise badgerDB creates massive number of goroutines
-	// to do subcompaction at once (8~20+)
-	if value, exists := os.LookupEnv("BADGERDB_NUM_SUBCOMPACTORS"); exists {
-		logger.Info().Str("env", "BADGERDB_NUM_SUBCOMPACTORS").Str("value", value).
-			Msg("Env variable BADGERDB_NUM_SUBCOMPACTORS is set.")
-		intValue, err := strconv.ParseInt(value, 10, 32)
-		if err != nil || intValue > 2<<16 {
-			return nil, errors.New("invalid BADGERDB_NUM_SUBCOMPACTORS env variable ")
-		}
-		opts.MaxParallelism = int(intValue)
-	}
-	if value, exists := os.LookupEnv("BADGERDB_NUM_SUBCOMPACTOR_WRITER"); exists {
-		logger.Info().Str("env", "BADGERDB_NUM_SUBCOMPACTOR_WRITER").Str("value", value).
-			Msg("Env variable BADGERDB_NUM_SUBCOMPACTOR_WRITER is set.")
-		intValue, err := strconv.ParseInt(value, 10, 32)
-		if err != nil || intValue > 2<<16 {
-			return nil, errors.New("invalid BADGERDB_NUM_SUBCOMPACTOR_WRITER env variable ")
-		}
-		opts.MaxSplits = float64(intValue)
-	}
-	if value, exists := os.LookupEnv("BADGERDB_THROTTLING_INTERVAL"); exists {
-		logger.Info().Str("env", "BADGERDB_THROTTLING_INTERVAL").Str("value", value).
-			Msg("Env variable BADGERDB_THROTTLING_INTERVAL is set.")
-		intValue, err := strconv.ParseInt(value, 10, 32)
-		if err != nil || intValue > 2<<16 {
-			return nil, errors.New("invalid BADGERDB_THROTTLING_INTERVAL env variable ")
-		}
-		opts.ThrottlingInterval = intValue
-	}
-	if value, exists := os.LookupEnv("BADGERDB_THROTTLING_SLEEP"); exists {
-		logger.Info().Str("env", "BADGERDB_THROTTLING_SLEEP").Str("value", value).
-			Msg("Env variable BADGERDB_THROTTLING_SLEEP is set.")
-		intValue, err := strconv.ParseInt(value, 10, 32)
-		if err != nil || intValue > 2<<16 {
-			return nil, errors.New("invalid BADGERDB_THROTTLING_SLEEP env variable ")
-		}
-		opts.ThrottlingSleepDuration = intValue
-	}
 
 	// open badger db
 	db, err := badger.Open(opts)
 	if err != nil {
+		return nil, err
+	}
+
+	// check DB status
+	if err = checkDatabaseIntegrity(db, opts); err != nil {
 		return nil, err
 	}
 
@@ -418,6 +345,70 @@ func newBadgerDB(dir string, opt ...Opt) (DB, error) {
 
 	go database.runBadgerGC()
 	return database, nil
+}
+
+// checkDatabaseIntegrity checks the integrity of the database.
+func checkDatabaseIntegrity(db *badger.DB, opts badger.Options) error {
+	currentMaxLevel := len(db.Levels())
+	if currentMaxLevel > opts.MaxLevels {
+		return fmt.Errorf("DB level is higher than configuration. DB level: %d, configuration: %d", currentMaxLevel, opts.MaxLevels)
+	}
+	return nil
+}
+
+func configureOptions(opts *badger.Options) error {
+	var err error
+	if _, exists := os.LookupEnv("BADGERDB_NO_COMPRESSION"); exists {
+		logger.Info().Str("env", "BADGERDB_NO_COMPRESSION").
+			Msg("Env variable BADGERDB_NO_COMPRESSION is set.")
+		opts.Compression = options.None
+	}
+	if err = readEnvInt64ValueShift("BADGERDB_VALUE_LOG_FILE_SIZE_MB", 0, 2<<24,
+		&opts.ValueLogFileSize, 20); err != nil {
+		return err
+	}
+	if err = readEnvInt64ValueShift("BADGERDB_BLOCK_CACHE_SIZE_MB", 0, 2<<24,
+		&opts.BlockCacheSize, 20); err != nil {
+		return err
+	}
+	if err = readEnvInt64Value("BADGERDB_VALUE_THRESHOLD", 0, 2<<24,
+		&opts.ValueThreshold); err != nil {
+		return err
+	}
+	if err = readEnvIntValue("BADGERDB_NUM_COMPACTORS", 0, 2<<16,
+		&opts.NumCompactors); err != nil {
+		return err
+	}
+
+	if err = readEnvInt64Value("BADGERDB_BASE_TABLE", 0, 2<<40,
+		&opts.BaseTableSize); err != nil {
+		return err
+	}
+	if err = readEnvIntValue("BADGERDB_MAX_LEVELS", 0, 2<<8,
+		&opts.MaxLevels); err != nil {
+		return err
+	}
+
+	// limit subcompactors, otherwise badgerDB creates massive number of goroutines
+	// to do subcompaction at once (8~20+)
+	if err = readEnvIntValue("BADGERDB_NUM_SUBCOMPACTORS", 0, 2<<16,
+		&opts.MaxParallelism); err != nil {
+		return err
+	}
+	if err = readEnvFloat64Value("BADGERDB_NUM_SUBCOMPACTOR_WRITER", 0, 2<<16,
+		&opts.MaxSplits); err != nil {
+		return err
+	}
+
+	if err = readEnvInt64Value("BADGERDB_THROTTLING_INTERVAL", 0, 2<<16,
+		&opts.ThrottlingInterval); err != nil {
+		return err
+	}
+	if err = readEnvInt64Value("BADGERDB_THROTTLING_SLEEP", 0, 2<<16,
+		&opts.ThrottlingSleepDuration); err != nil {
+		return err
+	}
+	return nil
 }
 
 //=========================================================
@@ -784,7 +775,7 @@ func readEnvFlagValue(envName string, applyFunc func(value string)) {
 	}
 }
 
-func readEnvIntValue(envName string, lowerLimit, upperLimit int64, applyFunc func(val int64)) error {
+func readEnvInt64Value(envName string, lowerLimit, upperLimit int64, inValue *int64) error {
 	if value, exists := os.LookupEnv(envName); exists {
 		logger.Info().Str("env", envName).Str("value", value).
 			Msg("Env variable is set.")
@@ -792,7 +783,50 @@ func readEnvIntValue(envName string, lowerLimit, upperLimit int64, applyFunc fun
 		if err != nil || intValue < lowerLimit || intValue > upperLimit {
 			return fmt.Errorf("invalid %s env variable ", envName)
 		}
-		applyFunc(intValue)
+		*inValue = intValue
+	}
+	return nil
+}
+
+func readEnvInt64ValueShift(envName string, lowerLimit, upperLimit int64, inValue *int64, shift int) error {
+	if value, exists := os.LookupEnv(envName); exists {
+		logger.Info().Str("env", envName).Str("value", value).
+			Msg("Env variable is set.")
+		intValue, err := strconv.ParseInt(value, 10, 64)
+		if err != nil || intValue < lowerLimit || intValue > upperLimit {
+			return fmt.Errorf("invalid %s env variable ", envName)
+		}
+		if shift < 0 {
+			*inValue = intValue >> -shift
+		} else {
+			*inValue = intValue << shift
+		}
+	}
+	return nil
+}
+
+func readEnvIntValue(envName string, lowerLimit, upperLimit int64, inValue *int) error {
+	if value, exists := os.LookupEnv(envName); exists {
+		logger.Info().Str("env", envName).Str("value", value).
+			Msg("Env variable is set.")
+		intValue, err := strconv.ParseInt(value, 10, 64)
+		if err != nil || intValue < lowerLimit || intValue > upperLimit {
+			return fmt.Errorf("invalid %s env variable ", envName)
+		}
+		*inValue = int(intValue)
+	}
+	return nil
+}
+
+func readEnvFloat64Value(envName string, lowerLimit, upperLimit int64, inValue *float64) error {
+	if value, exists := os.LookupEnv(envName); exists {
+		logger.Info().Str("env", envName).Str("value", value).
+			Msg("Env variable is set.")
+		intValue, err := strconv.ParseInt(value, 10, 64)
+		if err != nil || intValue < lowerLimit || intValue > upperLimit {
+			return fmt.Errorf("invalid %s env variable ", envName)
+		}
+		*inValue = float64(intValue)
 	}
 	return nil
 }
