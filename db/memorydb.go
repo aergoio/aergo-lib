@@ -17,13 +17,13 @@ import (
 
 // This function is always called first
 func init() {
-	dbConstructor := func(dir string, opts ...Opt) (DB, error) {
+	dbConstructor := func(dir string, opts ...Option) (DB, error) {
 		return newMemoryDB(dir, opts...)
 	}
 	registerDBConstructor(MemoryImpl, dbConstructor)
 }
 
-func newMemoryDB(dir string, opt ...Opt) (DB, error) {
+func newMemoryDB(dir string, opt ...Option) (DB, error) {
 	var db map[string][]byte
 
 	filePath := path.Join(dir, "database")
@@ -67,9 +67,6 @@ type memorydb struct {
 
 func (db *memorydb) Type() string {
 	return "memorydb"
-}
-
-func (db *memorydb) SetCompactionEvent(event CompactionEventHandler) {
 }
 
 func (db *memorydb) Set(key, value []byte) {

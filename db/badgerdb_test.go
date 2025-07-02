@@ -19,7 +19,7 @@ func Test_newBadgerDB(t *testing.T) {
 		t.Fatal(err)
 	}
 	type args struct {
-		opt []Opt
+		opt []Option
 	}
 	tests := []struct {
 		name    string
@@ -27,7 +27,7 @@ func Test_newBadgerDB(t *testing.T) {
 		want    int64
 		wantErr assert.ErrorAssertionFunc
 	}{
-		{"default", args{[]Opt{}}, badgerValueThreshold, assert.NoError},
+		{"default", args{[]Option{}}, badgerValueThreshold, assert.NoError},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -108,7 +108,7 @@ func Test_badgerDB_CompactionController(t *testing.T) {
 	fmt.Println(tmpDir)
 
 	type args struct {
-		opt []Opt
+		opt []Option
 	}
 	tests := []struct {
 		name    string
@@ -116,23 +116,23 @@ func Test_badgerDB_CompactionController(t *testing.T) {
 		want    int64
 		wantErr assert.ErrorAssertionFunc
 	}{
-		{"default", args{[]Opt{}}, badgerValueThreshold, assert.NoError},
+		{"default", args{[]Option{}}, badgerValueThreshold, assert.NoError},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			dir := path.Join(tmpDir, tt.name)
-			got := NewDB(BadgerImpl, dir, Opt{
+			got := NewDB(BadgerImpl, dir, Option{
 				Name:  "compactionController",
 				Value: true,
-			})
-			got.SetCompactionEvent(func(event CompactionEvent) {
-				if event.Start {
-					fmt.Println("compaction at level", event.Level, "splits", event.NumSplits)
-				} else {
-					fmt.Println("compaction complete")
-				}
-
-			})
+			}, Option{
+				Name: OptCompactionEventHandler,
+				Value: func(event CompactionEvent) {
+					if event.Start {
+						fmt.Println("compaction at level", event.Level, "splits", event.NumSplits)
+					} else {
+						fmt.Println("compaction complete")
+					}
+				}})
 
 			const count = 1000000000 // 수십만 건 insert
 			batch := got.NewBulk()

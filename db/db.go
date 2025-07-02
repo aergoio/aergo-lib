@@ -74,7 +74,7 @@ func registerDBConstructor(dbimpl ImplType, constructor dbConstructor) {
 }
 
 // NewDB creates new database or load existing database in the directory
-func NewDB(dbimpltype ImplType, dir string, options ...Opt) DB {
+func NewDB(dbimpltype ImplType, dir string, options ...Option) DB {
 	// The default wrapper need 3 frames and badger wrapper need 1 frame to show actual stack trace.
 	logger = newBadgerExtendedLog(log.NewLogger("db"))
 	db, err := dbImpls[dbimpltype](dir, options...)

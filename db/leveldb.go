@@ -18,13 +18,13 @@ import (
 
 // This function is always called first
 func init() {
-	dbConstructor := func(dir string, opts ...Opt) (DB, error) {
+	dbConstructor := func(dir string, opts ...Option) (DB, error) {
 		return newLevelDB(dir, opts...)
 	}
 	registerDBConstructor(LevelImpl, dbConstructor)
 }
 
-func newLevelDB(dir string, opts ...Opt) (DB, error) {
+func newLevelDB(dir string, opts ...Option) (DB, error) {
 	dbPath := filepath.Join(dir, "data.db")
 
 	db, err := leveldb.OpenFile(dbPath, nil)
@@ -51,9 +51,6 @@ type levelDB struct {
 
 func (db *levelDB) Type() string {
 	return "leveldb"
-}
-
-func (db *levelDB) SetCompactionEvent(event CompactionEventHandler) {
 }
 
 func (db *levelDB) Set(key, value []byte) {

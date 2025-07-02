@@ -176,7 +176,7 @@ func (cmpCtl *compactionController) run() {
 
 // This function is always called first
 func init() {
-	dbConstructor := func(dir string, opts ...Opt) (DB, error) {
+	dbConstructor := func(dir string, opts ...Option) (DB, error) {
 		return newBadgerDB(dir, opts...)
 	}
 	registerDBConstructor(BadgerImpl, dbConstructor)
@@ -228,23 +228,31 @@ func (db *badgerDB) runBadgerGC() {
 
 // newBadgerDB create a DB instance that uses badger db and implements DB interface.
 // An input parameter, dir, is a root directory to store db files.
-func newBadgerDB(dir string, opt ...Opt) (DB, error) {
+func newBadgerDB(dir string, opt ...Option) (DB, error) {
 	// internal configurations
 	var cmpControllerEnabled bool
 	var port int
+	var compactionEventHandler CompactionEventHandler = nil
 
 	for _, op := range opt {
-		if op.Name == "compactionController" {
+		if op.Name == OptCompactionController {
 			if val, ok := op.Value.(bool); ok && val {
 				cmpControllerEnabled = true
 			}
-		} else if op.Name == "compactionControllerPort" {
+		} else if op.Name == OptCompactionControllerPort {
 			if val, ok := op.Value.(int); ok {
 				port = val
 			}
-		} else if op.Name == "enableConfigure" {
+		} else if op.Name == OptEnableConfigure {
 			if val, ok := op.Value.(bool); ok && val {
 				enableConfigure = true
+			}
+		} else if op.Name == OptCompactionEventHandler {
+			switch v := op.Value.(type) {
+			case CompactionEventHandler:
+				compactionEventHandler = v
+			case func(CompactionEvent):
+				compactionEventHandler = v
 			}
 		}
 	}
@@ -300,6 +308,7 @@ func newBadgerDB(dir string, opt ...Opt) (DB, error) {
 		name:         dir,
 		discardRatio: dbDiscardRatio,
 		noGc:         noGc,
+		onCompaction: compactionEventHandler,
 	}
 
 	opts.OnCompaction = func(event badger.CompactionEvent) {
@@ -432,10 +441,6 @@ type badgerDB struct {
 // Type function returns a database type name
 func (db *badgerDB) Type() string {
 	return "badgerdb"
-}
-
-func (db *badgerDB) SetCompactionEvent(event CompactionEventHandler) {
-	db.onCompaction = event
 }
 
 func (db *badgerDB) Set(key, value []byte) {
