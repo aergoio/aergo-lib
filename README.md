@@ -1,9 +1,10 @@
 [![Go Report Card](https://goreportcard.com/badge/github.com/aergoio/aergo-lib)](https://goreportcard.com/report/github.com/aergoio/aergo-lib)
 [![MIT License](https://img.shields.io/badge/license-MIT-blue.svg)](https://opensource.org/licenses/MIT)
-[![Travis_ci](https://travis-ci.org/aergoio/aergo-lib.svg?branch=master)](https://travis-ci.org/aergoio/aergo-lib)
 [![Maintainability](https://api.codeclimate.com/v1/badges/a055db179465dc8176f4/maintainability)](https://codeclimate.com/github/aergoio/aergo-lib/maintainability)
 [![Test Coverage](https://api.codeclimate.com/v1/badges/a055db179465dc8176f4/test_coverage)](https://codeclimate.com/github/aergoio/aergo-lib/test_coverage)
 [![API Reference](https://godoc.org/github.com/aergoio/aergo-lib?status.svg)](https://godoc.org/github.com/aergoio/aergo-lib)
+
+[comment]: <> (CI badge will be added on next release. )
 
 # aergo-lib
 
