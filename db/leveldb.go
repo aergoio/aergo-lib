@@ -18,13 +18,13 @@ import (
 
 // This function is always called first
 func init() {
-	dbConstructor := func(dir string) (DB, error) {
-		return newLevelDB(dir)
+	dbConstructor := func(dir string, opts ...Option) (DB, error) {
+		return newLevelDB(dir, opts...)
 	}
 	registerDBConstructor(LevelImpl, dbConstructor)
 }
 
-func newLevelDB(dir string) (DB, error) {
+func newLevelDB(dir string, opts ...Option) (DB, error) {
 	dbPath := filepath.Join(dir, "data.db")
 
 	db, err := leveldb.OpenFile(dbPath, nil)
@@ -134,9 +134,9 @@ func (transaction *levelTransaction) Delete(key []byte) {
 
 func (transaction *levelTransaction) Commit() {
 	if transaction.isDiscard {
-		panic("Commit after dicard tx is not allowed")
+		panic("Commit after discard tx is not allowed")
 	} else if transaction.isCommit {
-		panic("Commit occures two times")
+		panic("Commit occurs two times")
 	}
 	err := transaction.db.db.Write(transaction.tx, &opt.WriteOptions{Sync: true})
 	if err != nil {

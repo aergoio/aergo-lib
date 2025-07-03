@@ -74,10 +74,10 @@ func registerDBConstructor(dbimpl ImplType, constructor dbConstructor) {
 }
 
 // NewDB creates new database or load existing database in the directory
-func NewDB(dbimpltype ImplType, dir string) DB {
+func NewDB(dbimpltype ImplType, dir string, options ...Option) DB {
 	// The default wrapper need 3 frames and badger wrapper need 1 frame to show actual stack trace.
 	logger = newBadgerExtendedLog(log.NewLogger("db"))
-	db, err := dbImpls[dbimpltype](dir)
+	db, err := dbImpls[dbimpltype](dir, options...)
 
 	if err != nil {
 		panic(fmt.Sprintf("Fail to Create New DB: %v", err))

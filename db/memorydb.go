@@ -17,13 +17,13 @@ import (
 
 // This function is always called first
 func init() {
-	dbConstructor := func(dir string) (DB, error) {
-		return newMemoryDB(dir)
+	dbConstructor := func(dir string, opts ...Option) (DB, error) {
+		return newMemoryDB(dir, opts...)
 	}
 	registerDBConstructor(MemoryImpl, dbConstructor)
 }
 
-func newMemoryDB(dir string) (DB, error) {
+func newMemoryDB(dir string, opt ...Option) (DB, error) {
 	var db map[string][]byte
 
 	filePath := path.Join(dir, "database")
@@ -182,9 +182,9 @@ func (transaction *memoryTransaction) Commit() {
 	defer transaction.txLock.Unlock()
 
 	if transaction.isDiscard {
-		panic("Commit after dicard tx is not allowed")
+		panic("Commit after discard tx is not allowed")
 	} else if transaction.isCommit {
-		panic("Commit occures two times")
+		panic("Commit occurs two times")
 	}
 
 	db := transaction.db

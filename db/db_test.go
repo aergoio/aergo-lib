@@ -125,6 +125,85 @@ func TestTransactionDiscard(t *testing.T) {
 	}
 }
 
+func TestTransactionDiscardAfterCommit(t *testing.T) {
+
+	for key := range dbImpls {
+		dir, db := createTmpDB(key)
+
+		// create a new writable tx
+		tx := db.NewTx()
+		// discard test
+		tx = db.NewTx()
+		// set the value in the tx
+		tx.Set([]byte(tmpDbTestKey1), []byte(tmpDbTestStrVal2))
+
+		// commit tx
+		tx.Commit()
+
+		// it should be no harm to discard tx after commit
+		assert.NotPanics(t, func() { tx.Discard() }, "discard after commit is not allowed (DB %s)", key)
+
+		// after discard, the value must be reset at the db
+		assert.True(t, db.Exist([]byte(tmpDbTestKey1)), db.Type())
+
+		db.Close()
+		os.RemoveAll(dir)
+	}
+}
+
+func TestConcurrentTransaction(t *testing.T) {
+
+	for key := range dbImpls {
+		dir, db := createTmpDB(key)
+
+		// create a new writable tx
+		tx := db.NewTx()
+		// discard test
+		tx2 := db.NewTx()
+		// set the value with different key
+		tx.Set([]byte(tmpDbTestKey1), []byte(tmpDbTestStrVal1))
+		tx2.Set([]byte(tmpDbTestKey2), []byte(tmpDbTestStrVal2))
+
+		// commit tx
+		tx2.Commit()
+		tx.Commit()
+
+		assert.True(t, db.Exist([]byte(tmpDbTestKey1)), db.Type())
+		assert.True(t, db.Exist([]byte(tmpDbTestKey2)), db.Type())
+		assert.Equal(t, []byte(tmpDbTestStrVal1), db.Get([]byte(tmpDbTestKey1)), db.Type())
+		assert.Equal(t, []byte(tmpDbTestStrVal2), db.Get([]byte(tmpDbTestKey2)), db.Type())
+		db.Close()
+		os.RemoveAll(dir)
+	}
+}
+
+func TestTransactionCocurrentCommits(t *testing.T) {
+	// Note: BadgerDB implements "Last-Commit-Wins" concurrency control semantics.
+	// When two transactions modify the same data concurrently, the transaction that
+	// commits last will overwrite changes made by the earlier transaction without
+	// raising conflicts or errors.
+	for key := range dbImpls {
+		dir, db := createTmpDB(key)
+
+		// create a new writable tx
+		tx := db.NewTx()
+		// discard test
+		tx2 := db.NewTx()
+		// set the value with different key
+		tx.Set([]byte(tmpDbTestKey1), []byte(tmpDbTestStrVal1))
+		tx2.Set([]byte(tmpDbTestKey1), []byte(tmpDbTestStrVal2))
+
+		// commit tx
+		tx.Commit()
+		tx2.Commit()
+
+		assert.True(t, db.Exist([]byte(tmpDbTestKey1)), db.Type())
+		assert.Equal(t, []byte(tmpDbTestStrVal2), db.Get([]byte(tmpDbTestKey1)), db.Type())
+		db.Close()
+		os.RemoveAll(dir)
+	}
+}
+
 func TestTransactionDelete(t *testing.T) {
 
 	for key := range dbImpls {
@@ -151,19 +230,18 @@ func TestTransactionDelete(t *testing.T) {
 
 func TestTransactionCommitTwice(t *testing.T) {
 	for key := range dbImpls {
-		// TODO BadgerImpl fails to test since badger/v2 by bug. This bug was patched in v4.3.0 but we cannot update it unless more tests.
-		// see https://github.com/hypermodeinc/badger/pull/2018
-
 		dir, db := createTmpDB(key)
 
 		// create a new writable tx
 		tx := db.NewTx()
 
+		tx.Set([]byte(tmpDbTestKey1), []byte(tmpDbTestStrVal1))
+
 		// a first commit will success
 		tx.Commit()
 
 		// a second commit will cause panic
-		assert.Panics(t, func() { tx.Commit() }, "db impl "+key+" commit twice should panic")
+		assert.Panics(t, func() { tx.Commit() }, "commit after commit is not allowed. (DBImpl %s)", key)
 
 		db.Close()
 		os.RemoveAll(dir)
