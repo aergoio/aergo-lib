@@ -8,7 +8,6 @@ package db
 import (
 	"fmt"
 	"path/filepath"
-	"sync"
 
 	"github.com/aergoio/kv_log"
 )
@@ -60,7 +59,6 @@ func newKVLogDB(dir string, opts ...Option) (DB, error) {
 var _ DB = (*kvLogDB)(nil)
 
 type kvLogDB struct {
-	lock sync.RWMutex
 	db   *kv_log.DB
 	path string
 }
@@ -74,9 +72,6 @@ func (db *kvLogDB) Path() string {
 }
 
 func (db *kvLogDB) Set(key, value []byte) {
-	db.lock.Lock()
-	defer db.lock.Unlock()
-
 	key = convNilToBytes(key)
 	value = convNilToBytes(value)
 
@@ -87,9 +82,6 @@ func (db *kvLogDB) Set(key, value []byte) {
 }
 
 func (db *kvLogDB) Delete(key []byte) {
-	db.lock.Lock()
-	defer db.lock.Unlock()
-
 	key = convNilToBytes(key)
 
 	err := db.db.Delete(key)
@@ -99,9 +91,6 @@ func (db *kvLogDB) Delete(key []byte) {
 }
 
 func (db *kvLogDB) Get(key []byte) []byte {
-	db.lock.RLock()
-	defer db.lock.RUnlock()
-
 	key = convNilToBytes(key)
 
 	value, err := db.db.Get(key)
@@ -116,9 +105,6 @@ func (db *kvLogDB) Get(key []byte) []byte {
 }
 
 func (db *kvLogDB) Exist(key []byte) bool {
-	db.lock.RLock()
-	defer db.lock.RUnlock()
-
 	key = convNilToBytes(key)
 
 	// kv_log doesn't have a Has/Exist method, so we use Get and check for errors
@@ -128,18 +114,12 @@ func (db *kvLogDB) Exist(key []byte) bool {
 }
 
 func (db *kvLogDB) Close() {
-	db.lock.Lock()
-	defer db.lock.Unlock()
-
 	if err := db.db.Close(); err != nil {
 		panic(fmt.Sprintf("Database Error: %v", err))
 	}
 }
 
 func (db *kvLogDB) IoCtl(ioCtlType string) {
-	db.lock.Lock()
-	defer db.lock.Unlock()
-
 	// kv_log doesn't have a Sync method, so we just ignore the IoCtl call
 }
 
@@ -356,9 +336,6 @@ type kvLogIterator struct {
 }
 
 func (db *kvLogDB) Iterator(start, end []byte) Iterator {
-	db.lock.RLock()
-	defer db.lock.RUnlock()
-
 	// kv_log doesn't support sorted iteration with range,
 	// so we just create an iterator that iterates over all keys
 	iter := db.db.NewIterator(nil, nil)
