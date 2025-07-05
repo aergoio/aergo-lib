@@ -12,6 +12,9 @@ const (
 	// BadgerImpl represents a name of DB interface implementation using badgerdb
 	BadgerImpl ImplType = "badgerdb"
 
+	// KvLogImpl represents a name of DB interface implementation using kvlog
+	KvLogImpl ImplType = "kv_log"
+
 	// LevelImpl represents a name of DB interface implementation using leveldb
 	LevelImpl ImplType = "leveldb"
 
