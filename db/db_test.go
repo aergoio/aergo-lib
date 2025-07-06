@@ -10,9 +10,11 @@ import (
 	"log"
 	"os"
 	"strconv"
+	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 const (
@@ -107,8 +109,11 @@ func TestTransactionDiscard(t *testing.T) {
 
 		// create a new writable tx
 		tx := db.NewTx()
-		// discard test
-		tx = db.NewTx()
+		// kv_log does not support concurrent transactions on the same thread
+		if key != "kv_log" {
+			// discard test
+			tx = db.NewTx()
+		}
 		// set the value in the tx
 		tx.Set([]byte(tmpDbTestKey1), []byte(tmpDbTestStrVal2))
 
@@ -132,8 +137,11 @@ func TestTransactionDiscardAfterCommit(t *testing.T) {
 
 		// create a new writable tx
 		tx := db.NewTx()
-		// discard test
-		tx = db.NewTx()
+		// kv_log does not support concurrent transactions on the same thread
+		if key != "kv_log" {
+			// discard test
+			tx = db.NewTx()
+		}
 		// set the value in the tx
 		tx.Set([]byte(tmpDbTestKey1), []byte(tmpDbTestStrVal2))
 
@@ -156,17 +164,31 @@ func TestConcurrentTransaction(t *testing.T) {
 	for key := range dbImpls {
 		dir, db := createTmpDB(key)
 
-		// create a new writable tx
-		tx := db.NewTx()
-		// discard test
-		tx2 := db.NewTx()
-		// set the value with different key
-		tx.Set([]byte(tmpDbTestKey1), []byte(tmpDbTestStrVal1))
-		tx2.Set([]byte(tmpDbTestKey2), []byte(tmpDbTestStrVal2))
+		var wg sync.WaitGroup
+		startCh := make(chan struct{})
+		wg.Add(2)
 
-		// commit tx
-		tx2.Commit()
-		tx.Commit()
+		go func() {
+			defer wg.Done()
+			<-startCh // Wait for the signal to continue
+			tx := db.NewTx()
+			tx.Set([]byte(tmpDbTestKey2), []byte(tmpDbTestStrVal2))
+			tx.Commit()
+		}()
+
+		go func() {
+			defer wg.Done()
+			<-startCh // Wait for the signal to continue
+			tx := db.NewTx()
+			tx.Set([]byte(tmpDbTestKey1), []byte(tmpDbTestStrVal1))
+			tx.Commit()
+		}()
+
+		// Signal both goroutines to continue
+		close(startCh)
+
+		// Wait for both goroutines to complete
+		wg.Wait()
 
 		assert.True(t, db.Exist([]byte(tmpDbTestKey1)), db.Type())
 		assert.True(t, db.Exist([]byte(tmpDbTestKey2)), db.Type())
@@ -183,6 +205,11 @@ func TestTransactionCocurrentCommits(t *testing.T) {
 	// commits last will overwrite changes made by the earlier transaction without
 	// raising conflicts or errors.
 	for key := range dbImpls {
+		// kv_log does not support concurrent transactions on the same thread
+		if key == "kv_log" {
+			continue
+		}
+
 		dir, db := createTmpDB(key)
 
 		// create a new writable tx
@@ -296,29 +323,35 @@ func TestIter(t *testing.T) {
 
 func TestRangeIter(t *testing.T) {
 
-	for key := range dbImpls {
-		dir, db := createTmpDB(key)
+	for dbType := range dbImpls {
+		dir, db := createTmpDB(dbType)
 
 		setInitData(db)
 
-		// test iteration 2 -> 5
-		i := 2
+		// test iteration 2 -> 5 (should return 2, 3, 4)
+		expectedKeys := []string{"2", "3", "4"}
+		expectedValues := []string{"2", "3", "4"}
+		idx := 0
 		for iter := db.Iterator([]byte("2"), []byte("5")); iter.Valid(); iter.Next() {
-			assert.EqualValues(t, strconv.Itoa(i), string(iter.Key()))
-			assert.EqualValues(t, strconv.Itoa(i), string(iter.Value()))
-			i++
+			require.Less(t, idx, len(expectedKeys), "Iterator returned more pairs than expected: %s", dbType)
+			assert.EqualValues(t, expectedKeys[idx], string(iter.Key()), dbType)
+			assert.EqualValues(t, expectedValues[idx], string(iter.Value()), dbType)
+			idx++
 		}
-		assert.EqualValues(t, i, 5)
+		assert.EqualValues(t, len(expectedKeys), idx, "Iterator did not return the expected number of pairs: %s", dbType)
 
-		// nil sames with []byte("0")
-		// test iteration 0 -> 5
-		i = 1
+		// nil same as []byte("0")
+		// test iteration 0 -> 5 (should return 1, 2, 3, 4)
+		expectedKeys = []string{"1", "2", "3", "4"}
+		expectedValues = []string{"1", "2", "3", "4"}
+		idx = 0
 		for iter := db.Iterator(nil, []byte("5")); iter.Valid(); iter.Next() {
-			assert.EqualValues(t, strconv.Itoa(i), string(iter.Key()))
-			assert.EqualValues(t, strconv.Itoa(i), string(iter.Value()))
-			i++
+			require.Less(t, idx, len(expectedKeys), "Iterator returned more pairs than expected: %s", dbType)
+			assert.EqualValues(t, expectedKeys[idx], string(iter.Key()), dbType)
+			assert.EqualValues(t, expectedValues[idx], string(iter.Value()), dbType)
+			idx++
 		}
-		assert.EqualValues(t, i, 5)
+		assert.EqualValues(t, len(expectedKeys), idx, "Iterator did not return the expected number of pairs: %s", dbType)
 
 		db.Close()
 		os.RemoveAll(dir)
@@ -327,29 +360,35 @@ func TestRangeIter(t *testing.T) {
 
 func TestReverseIter(t *testing.T) {
 
-	for key := range dbImpls {
-		dir, db := createTmpDB(key)
+	for dbType := range dbImpls {
+		dir, db := createTmpDB(dbType)
 
 		setInitData(db)
 
-		// test reverse iteration 5 <- 2
-		i := 5
+		// test reverse iteration 5 <- 2 (should return 5, 4, 3)
+		expectedKeys := []string{"5", "4", "3"}
+		expectedValues := []string{"5", "4", "3"}
+		idx := 0
 		for iter := db.Iterator([]byte("5"), []byte("2")); iter.Valid(); iter.Next() {
-			assert.EqualValues(t, strconv.Itoa(i), string(iter.Key()))
-			assert.EqualValues(t, strconv.Itoa(i), string(iter.Value()))
-			i--
+			require.Less(t, idx, len(expectedKeys), "Iterator returned more pairs than expected: %s", dbType)
+			assert.EqualValues(t, expectedKeys[idx], string(iter.Key()), dbType)
+			assert.EqualValues(t, expectedValues[idx], string(iter.Value()), dbType)
+			idx++
 		}
-		assert.EqualValues(t, i, 2)
+		assert.EqualValues(t, len(expectedKeys), idx, "Iterator did not return the expected number of pairs: %s", dbType)
 
-		// nil sames with []byte("0")
-		// test reverse iteration 5 -> 0
-		i = 5
+		// nil same as []byte("0")
+		// test reverse iteration 5 -> 0 (should return 5, 4, 3, 2, 1)
+		expectedKeys = []string{"5", "4", "3", "2", "1"}
+		expectedValues = []string{"5", "4", "3", "2", "1"}
+		idx = 0
 		for iter := db.Iterator([]byte("5"), nil); iter.Valid(); iter.Next() {
-			assert.EqualValues(t, strconv.Itoa(i), string(iter.Key()))
-			assert.EqualValues(t, strconv.Itoa(i), string(iter.Value()))
-			i--
+			require.Less(t, idx, len(expectedKeys), "Iterator returned more pairs than expected: %s", dbType)
+			assert.EqualValues(t, expectedKeys[idx], string(iter.Key()), dbType)
+			assert.EqualValues(t, expectedValues[idx], string(iter.Value()), dbType)
+			idx++
 		}
-		assert.EqualValues(t, i, 0)
+		assert.EqualValues(t, len(expectedKeys), idx, "Iterator did not return the expected number of pairs: %s", dbType)
 
 		db.Close()
 		os.RemoveAll(dir)

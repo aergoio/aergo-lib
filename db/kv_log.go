@@ -6,6 +6,7 @@
 package db
 
 import (
+	"bytes"
 	"fmt"
 	"path/filepath"
 
@@ -336,9 +337,16 @@ type kvLogIterator struct {
 }
 
 func (db *kvLogDB) Iterator(start, end []byte) Iterator {
-	// kv_log doesn't support sorted iteration with range,
-	// so we just create an iterator that iterates over all keys
-	iter := db.db.NewIterator(nil, nil)
+
+	// if end is bigger then start, then reverse order
+	var reverse bool
+	if bytes.Compare(start, end) == 1 {
+		reverse = true
+	} else {
+		reverse = false
+	}
+
+	iter := db.db.NewIterator(start, end, reverse)
 
 	return &kvLogIterator{
 		iter:      iter,
