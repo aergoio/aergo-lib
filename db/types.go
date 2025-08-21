@@ -15,6 +15,9 @@ const (
 	// LevelImpl represents a name of DB interface implementation using leveldb
 	LevelImpl ImplType = "leveldb"
 
+	// HashTableImpl represents a name of DB interface implementation using hashtabledb
+	HashTableImpl ImplType = "hashtabledb"
+
 	// MemoryImpl represents a name of DB interface implementation in memory
 	MemoryImpl ImplType = "memorydb"
 )
