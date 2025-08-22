@@ -17,7 +17,7 @@ require (
 )
 
 require (
-	github.com/aergoio/hashtabledb v0.0.0-20250821041254-e498d53d67e8 // indirect
+	github.com/aergoio/hashtabledb v0.0.0-20250822031028-975b43979cd1 // indirect
 	github.com/bytedance/sonic v1.11.6 // indirect
 	github.com/bytedance/sonic/loader v0.1.1 // indirect
 	github.com/cespare/xxhash v1.1.0 // indirect
