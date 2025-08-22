@@ -47,8 +47,15 @@ func newHashTableDB(dir string, opts ...Option) (DB, error) {
 		return nil, err
 	}
 
+	// DPOS
 	db.SetOption("AddExternalKey", []byte("dpos.LibStatus"))
 	db.SetOption("AddExternalKey", []byte("chain.latest"))
+
+	// Raft
+	db.SetOption("AddExternalKey", []byte("r_identity"))
+	db.SetOption("AddExternalKey", []byte("r_state"))
+	db.SetOption("AddExternalKey", []byte("r_snap"))
+	db.SetOption("AddExternalKey", []byte("r_last"))
 
 	database := &hashTableDB{
 		db:   db,
