@@ -3,8 +3,8 @@ github.com/BurntSushi/toml v0.3.1 h1:WXkYYl6Yr3qBf1K79EBnL4mak0OimBfB0XUf9Vl28OQ
 github.com/BurntSushi/toml v0.3.1/go.mod h1:xHWCNGjB5oqiDr8zfno3MHue2Ht5sIBksp03qcyfWMU=
 github.com/OneOfOne/xxhash v1.2.2 h1:KMrpdQIwFcEqXDklaen+P1axHaj9BSKzvpUUfnHldSE=
 github.com/OneOfOne/xxhash v1.2.2/go.mod h1:HSdplMjZKSmBqAxg5vPj2TmRDmfkzw+cTzAElWljhcU=
-github.com/aergoio/hashtabledb v0.0.0-20250822031028-975b43979cd1 h1:ZZJ+XkO6UHRQJgWXQmTj4pc6KyLVTGzbonLk2cIalZs=
-github.com/aergoio/hashtabledb v0.0.0-20250822031028-975b43979cd1/go.mod h1:IqGin7i9MiVvVI1TnRSvtgxQygS9qIltYpT8VZaoT/w=
+github.com/aergoio/hashtabledb v0.0.0-20250823023056-359d22e17865 h1:KRrl+O0wVMIlyTJyXJQ0z9Le3nlGByzVgo7HCElFKnY=
+github.com/aergoio/hashtabledb v0.0.0-20250823023056-359d22e17865/go.mod h1:IqGin7i9MiVvVI1TnRSvtgxQygS9qIltYpT8VZaoT/w=
 github.com/alecthomas/template v0.0.0-20160405071501-a0175ee3bccc/go.mod h1:LOuyumcjzFXgccqObfd/Ljyb9UuFJ6TxHnclSeseNhc=
 github.com/alecthomas/units v0.0.0-20151022065526-2efee857e7cf/go.mod h1:ybxpYRFXyAe+OPACYpWeL0wqObRcbAqCMya13uyzqw0=
 github.com/armon/consul-api v0.0.0-20180202201655-eb2c6b5be1b6/go.mod h1:grANhF5doyWs3UAsr3K4I6qtAmlQcZDesFNEHPZAzj8=

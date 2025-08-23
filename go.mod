@@ -5,6 +5,7 @@ go 1.23.0
 toolchain go1.23.7
 
 require (
+	github.com/aergoio/hashtabledb v0.0.0-20250823023056-359d22e17865
 	github.com/dgraph-io/badger/v3 v3.2104.5
 	github.com/gin-gonic/gin v1.10.1
 	github.com/guptarohit/asciigraph v0.7.3
@@ -17,7 +18,6 @@ require (
 )
 
 require (
-	github.com/aergoio/hashtabledb v0.0.0-20250822031028-975b43979cd1 // indirect
 	github.com/bytedance/sonic v1.11.6 // indirect
 	github.com/bytedance/sonic/loader v0.1.1 // indirect
 	github.com/cespare/xxhash v1.1.0 // indirect
