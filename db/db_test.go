@@ -103,6 +103,11 @@ func TestTransactionSet(t *testing.T) {
 func TestTransactionDiscard(t *testing.T) {
 
 	for key := range dbImpls {
+		// HashTableDB does not support concurrent transactions on the same thread
+		if key == "hashtabledb" {
+			continue
+		}
+
 		dir, db := createTmpDB(key)
 
 		// create a new writable tx
@@ -128,6 +133,11 @@ func TestTransactionDiscard(t *testing.T) {
 func TestTransactionDiscardAfterCommit(t *testing.T) {
 
 	for key := range dbImpls {
+		// HashTableDB does not support concurrent transactions on the same thread
+		if key == "hashtabledb" {
+			continue
+		}
+
 		dir, db := createTmpDB(key)
 
 		// create a new writable tx
@@ -154,6 +164,11 @@ func TestTransactionDiscardAfterCommit(t *testing.T) {
 func TestConcurrentTransaction(t *testing.T) {
 
 	for key := range dbImpls {
+		// HashTableDB does not support concurrent transactions on the same thread
+		if key == "hashtabledb" {
+			continue
+		}
+
 		dir, db := createTmpDB(key)
 
 		// create a new writable tx
@@ -183,6 +198,11 @@ func TestTransactionCocurrentCommits(t *testing.T) {
 	// commits last will overwrite changes made by the earlier transaction without
 	// raising conflicts or errors.
 	for key := range dbImpls {
+		// HashTableDB does not support concurrent transactions on the same thread
+		if key == "hashtabledb" {
+			continue
+		}
+
 		dir, db := createTmpDB(key)
 
 		// create a new writable tx
@@ -278,6 +298,11 @@ func TestBulk(t *testing.T) {
 func TestIter(t *testing.T) {
 
 	for key := range dbImpls {
+		// HashTableDB iterates in no sorted order
+		if key == "hashtabledb" {
+			continue
+		}
+
 		dir, db := createTmpDB(key)
 
 		setInitData(db)
@@ -297,6 +322,11 @@ func TestIter(t *testing.T) {
 func TestRangeIter(t *testing.T) {
 
 	for key := range dbImpls {
+		// HashTableDB iterates in no sorted order
+		if key == "hashtabledb" {
+			continue
+		}
+
 		dir, db := createTmpDB(key)
 
 		setInitData(db)
@@ -328,6 +358,11 @@ func TestRangeIter(t *testing.T) {
 func TestReverseIter(t *testing.T) {
 
 	for key := range dbImpls {
+		// HashTableDB iterates in no sorted order
+		if key == "hashtabledb" {
+			continue
+		}
+
 		dir, db := createTmpDB(key)
 
 		setInitData(db)
