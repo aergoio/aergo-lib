@@ -31,15 +31,9 @@ func newHashTableDB(dir string, opts ...Option) (DB, error) {
 		//"FastRollback": false,
 	}
 
-	// Process options
+	// Passed options
 	for _, opt := range opts {
-		switch opt.Name {
-		case "ReadOnly":
-			if readOnly, ok := opt.Value.(bool); ok {
-				options["ReadOnly"] = readOnly
-			}
-		// Add other hashtabledb specific options here as needed
-		}
+		options[opt.Name] = opt.Value
 	}
 
 	// Open hashtabledb database
