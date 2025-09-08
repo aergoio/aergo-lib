@@ -48,14 +48,14 @@ func newHashTableDB(dir string, opts ...Option) (DB, error) {
 	}
 
 	// DPOS
-	db.SetOption("AddExternalKey", []byte("dpos.LibStatus"))
-	db.SetOption("AddExternalKey", []byte("chain.latest"))
+	db.SetOption("AddMutableKey", []byte("dpos.LibStatus"))
+	db.SetOption("AddMutableKey", []byte("chain.latest"))
 
 	// Raft
-	db.SetOption("AddExternalKey", []byte("r_identity"))
-	db.SetOption("AddExternalKey", []byte("r_state"))
-	db.SetOption("AddExternalKey", []byte("r_snap"))
-	db.SetOption("AddExternalKey", []byte("r_last"))
+	db.SetOption("AddMutableKey", []byte("r_identity"))
+	db.SetOption("AddMutableKey", []byte("r_state"))
+	db.SetOption("AddMutableKey", []byte("r_snap"))
+	db.SetOption("AddMutableKey", []byte("r_last"))
 
 	database := &hashTableDB{
 		db:   db,
