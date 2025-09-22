@@ -22,6 +22,10 @@ const (
 
 	// MemoryImpl represents a name of DB interface implementation in memory
 	MemoryImpl ImplType = "memorydb"
+
+	// DummyImpl is a simple data store used for chain db in light nodes
+	// that only keeps the first block + the last 512 blocks
+	DummyImpl ImplType = "dummydb"
 )
 
 type dbConstructor func(dir string, options ...Opt) (DB, error)
