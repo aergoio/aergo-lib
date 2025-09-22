@@ -27,7 +27,8 @@ func newHashTableDB(dir string, opts ...Option) (DB, error) {
 	options := hashtabledb.Options{
 		"ReadOnly": false,
 		//"CacheSize": 1024 * 1024 * 1024, // 1GB
-		"HashTableSize": 32 * 1024, // number of pages in main hash table (128MB / 4kB = 32k pages)
+		"HashTableSize": 32 * 1024,  // number of pages in main hash table (128MB / 4kB = 32k pages)
+		"CacheSizeThreshold": "25%", // size of cache as percentage of available RAM
 		//"FastRollback": false,
 	}
 
