@@ -113,6 +113,19 @@ func newDummyDB(dir string, opts ...Option) (DB, error) {
 		dirty:     false,
 		saveTimer: time.NewTicker(15 * time.Second),
 		stopChan:  make(chan struct{}),
+		persistentKeys: map[string]bool{
+			"dpos.LibStatus": true,
+			"chain.latest":   true,
+			"r_identity":     true,
+			"r_state":        true,
+			"r_snap":         true,
+			"r_last":         true,
+		},
+		persistentPrefixes: []string{
+			"r_entry.",
+			"r_inv.",
+			"r_ccstatus.",
+		},
 	}
 
 	// Start the periodic save goroutine
@@ -154,16 +167,18 @@ type dummydbData struct {
 }
 
 type dummydb struct {
-	lock      sync.Mutex
-	db        []map[string][]byte // now fixed size 512, index 0 is genesis
-	head      int                 // index of newest version (1-511)
-	size      int                 // current number of versions (1-512)
-	dir       string
-	files     []string
-	version   uint64
-	dirty     bool
-	saveTimer *time.Ticker
-	stopChan  chan struct{}
+	lock               sync.Mutex
+	db                 []map[string][]byte // now fixed size 512, index 0 is genesis
+	head               int                 // index of newest version (1-511)
+	size               int                 // current number of versions (1-512)
+	dir                string
+	files              []string
+	version            uint64
+	dirty              bool
+	saveTimer          *time.Ticker
+	stopChan           chan struct{}
+	persistentKeys     map[string]bool     // keys that should not be discarded
+	persistentPrefixes []string            // key prefixes that should not be discarded
 }
 
 func (db *dummydb) Type() string {
@@ -198,14 +213,39 @@ func (db *dummydb) add_version() {
 	}
 }
 
+// isPersistentKey checks if a key should be stored persistently in genesis
+func (db *dummydb) isPersistentKey(keyStr string) bool {
+	// Check exact key matches first
+	if db.persistentKeys[keyStr] {
+		return true
+	}
+
+	// Check prefix matches
+	for _, prefix := range db.persistentPrefixes {
+		if strings.HasPrefix(keyStr, prefix) {
+			return true
+		}
+	}
+
+	return false
+}
+
 // this function does not lock the mutex
 func (db *dummydb) set(key, value []byte) {
 
 	key = convNilToBytes(key)
 	value = convNilToBytes(value)
 
-	// add the key-value pair to the newest/last version
-	db.db[db.head][string(key)] = value
+	keyStr := string(key)
+
+	// Check if this key should not be discarded
+	if db.isPersistentKey(keyStr) {
+		// Store in genesis version (index 0)
+		db.db[0][keyStr] = value
+	} else {
+		// add the key-value pair to the newest/last version
+		db.db[db.head][keyStr] = value
+	}
 
 	db.dirty = true
 }
