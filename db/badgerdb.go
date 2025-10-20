@@ -30,6 +30,7 @@ const (
 	badgerDbGcSize                  = 1 << 20 // 1 MB
 	badgerValueLogFileSize          = 1 << 26
 	badgerValueThreshold            = 1024
+	badgerMaxLevel                  = 8
 	defaultCompactionControllerPort = 17091
 )
 
@@ -270,6 +271,9 @@ func newBadgerDB(dir string, opt ...Opt) (DB, error) {
 	// Time to read or write 1GB file in cloud (normal disk, not high provisioned) takes almost 20 seconds for GC
 	opts.ValueLogFileSize = badgerValueLogFileSize
 	//opts.MaxTableSize = 1 << 20 // 2 ^ 20 = 1048576, max mempool size invokes updating vlog header for gc
+
+	// The default max level of original badgerDB is 7, but it can make panic on excessive data size
+	opts.MaxLevels = badgerMaxLevel
 
 	// set aergo-lib logger instead of default badger stderr logger
 	opts.Logger = logger
