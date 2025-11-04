@@ -11,13 +11,13 @@ import (
 	"path/filepath"
 	"sync"
 
-	"github.com/tecbot/gorocksdb"
+	"github.com/linxGnu/grocksdb"
 )
 
 // Singleton ReadOptions instance for reuse
 var (
 	readOptsOnce sync.Once
-	readOpts     *gorocksdb.ReadOptions
+	readOpts     *grocksdb.ReadOptions
 )
 
 // This function is always called first
@@ -32,15 +32,15 @@ func newRocksDB(dir string, opts ...Option) (DB, error) {
 	dbPath := filepath.Join(dir, "data.db")
 
 	// Create default options
-	options := gorocksdb.NewDefaultOptions()
+	options := grocksdb.NewDefaultOptions()
 	options.SetCreateIfMissing(true)
 
 	// Optimize for read performance
-	options.SetCompression(gorocksdb.NoCompression)
+	options.SetCompression(grocksdb.NoCompression)
 
 	// Set larger cache size for better cold read performance
-	cache := gorocksdb.NewLRUCache(1024 * 1024 * 1024) // 1GB
-	blockOpts := gorocksdb.NewDefaultBlockBasedTableOptions()
+	cache := grocksdb.NewLRUCache(1024 * 1024 * 1024) // 1GB
+	blockOpts := grocksdb.NewDefaultBlockBasedTableOptions()
 	blockOpts.SetBlockCache(cache)
 	//blockOpts.SetCacheIndexAndFilterBlocks(true)
 	//blockOpts.SetPinL0FilterAndIndexBlocksInCache(true)
@@ -66,8 +66,8 @@ func newRocksDB(dir string, opts ...Option) (DB, error) {
 		switch opt.Name {
 		case "BlockCacheSize":
 			if cacheSize, ok := opt.Value.(uint64); ok {
-				cache := gorocksdb.NewLRUCache(cacheSize)
-				blockOpts := gorocksdb.NewDefaultBlockBasedTableOptions()
+				cache := grocksdb.NewLRUCache(cacheSize)
+				blockOpts := grocksdb.NewDefaultBlockBasedTableOptions()
 				blockOpts.SetBlockCache(cache)
 				blockOpts.SetCacheIndexAndFilterBlocks(true)
 				blockOpts.SetPinL0FilterAndIndexBlocksInCache(true)
@@ -85,13 +85,13 @@ func newRocksDB(dir string, opts ...Option) (DB, error) {
 			if compression, ok := opt.Value.(string); ok {
 				switch compression {
 				case "none":
-					options.SetCompression(gorocksdb.NoCompression)
+					options.SetCompression(grocksdb.NoCompression)
 				case "snappy":
-					options.SetCompression(gorocksdb.SnappyCompression)
+					options.SetCompression(grocksdb.SnappyCompression)
 				case "lz4":
-					options.SetCompression(gorocksdb.LZ4Compression)
+					options.SetCompression(grocksdb.LZ4Compression)
 				case "lz4hc":
-					options.SetCompression(gorocksdb.LZ4HCCompression)
+					options.SetCompression(grocksdb.LZ4HCCompression)
 				}
 			}
 		case "UseDirectReads":
@@ -101,7 +101,7 @@ func newRocksDB(dir string, opts ...Option) (DB, error) {
 		}
 	}
 
-	db, err := gorocksdb.OpenDb(options, dbPath)
+	db, err := grocksdb.OpenDb(options, dbPath)
 	if err != nil {
 		options.Destroy()
 		return nil, err
@@ -122,8 +122,8 @@ func newRocksDB(dir string, opts ...Option) (DB, error) {
 var _ DB = (*rocksDB)(nil)
 
 type rocksDB struct {
-	db      *gorocksdb.DB
-	options *gorocksdb.Options
+	db      *grocksdb.DB
+	options *grocksdb.Options
 }
 
 func (db *rocksDB) Type() string {
@@ -134,7 +134,7 @@ func (db *rocksDB) Set(key, value []byte) {
 	key = convNilToBytes(key)
 	value = convNilToBytes(value)
 
-	writeOpts := gorocksdb.NewDefaultWriteOptions()
+	writeOpts := grocksdb.NewDefaultWriteOptions()
 	writeOpts.SetSync(false)
 	defer writeOpts.Destroy()
 
@@ -147,7 +147,7 @@ func (db *rocksDB) Set(key, value []byte) {
 func (db *rocksDB) Delete(key []byte) {
 	key = convNilToBytes(key)
 
-	writeOpts := gorocksdb.NewDefaultWriteOptions()
+	writeOpts := grocksdb.NewDefaultWriteOptions()
 	writeOpts.SetSync(false)
 	defer writeOpts.Destroy()
 
@@ -158,9 +158,9 @@ func (db *rocksDB) Delete(key []byte) {
 }
 
 // getReadOptions returns the singleton ReadOptions instance
-func getReadOptions() *gorocksdb.ReadOptions {
+func getReadOptions() *grocksdb.ReadOptions {
 	readOptsOnce.Do(func() {
-		readOpts = gorocksdb.NewDefaultReadOptions()
+		readOpts = grocksdb.NewDefaultReadOptions()
 		readOpts.SetFillCache(true) // Enable block cache filling
 		readOpts.SetVerifyChecksums(false) // Skip checksum verification for better performance
 	})
@@ -216,7 +216,7 @@ func (db *rocksDB) IoCtl(ioCtlType string) {
 func (db *rocksDB) NewTx() Transaction {
 	return &rocksTransaction{
 		db:        db,
-		batch:     gorocksdb.NewWriteBatch(),
+		batch:     grocksdb.NewWriteBatch(),
 		isDiscard: false,
 		isCommit:  false,
 	}
@@ -225,7 +225,7 @@ func (db *rocksDB) NewTx() Transaction {
 func (db *rocksDB) NewBulk() Bulk {
 	return &rocksBulk{
 		db:        db,
-		batch:     gorocksdb.NewWriteBatch(),
+		batch:     grocksdb.NewWriteBatch(),
 		isDiscard: false,
 		isCommit:  false,
 	}
@@ -237,7 +237,7 @@ func (db *rocksDB) NewBulk() Bulk {
 
 type rocksTransaction struct {
 	db        *rocksDB
-	batch     *gorocksdb.WriteBatch
+	batch     *grocksdb.WriteBatch
 	isDiscard bool
 	isCommit  bool
 }
@@ -260,7 +260,7 @@ func (transaction *rocksTransaction) Commit() {
 		panic("Commit occurs two times")
 	}
 
-	writeOpts := gorocksdb.NewDefaultWriteOptions()
+	writeOpts := grocksdb.NewDefaultWriteOptions()
 	writeOpts.SetSync(false)
 	defer writeOpts.Destroy()
 
@@ -282,7 +282,7 @@ func (transaction *rocksTransaction) Discard() {
 
 type rocksBulk struct {
 	db        *rocksDB
-	batch     *gorocksdb.WriteBatch
+	batch     *grocksdb.WriteBatch
 	isDiscard bool
 	isCommit  bool
 }
@@ -305,7 +305,7 @@ func (bulk *rocksBulk) Flush() {
 		panic("Commit occurs two times")
 	}
 
-	writeOpts := gorocksdb.NewDefaultWriteOptions()
+	writeOpts := grocksdb.NewDefaultWriteOptions()
 	writeOpts.SetSync(false)
 	defer writeOpts.Destroy()
 
@@ -326,8 +326,8 @@ func (bulk *rocksBulk) DiscardLast() {
 //=========================================================
 
 type rocksIterator struct {
-	iter      *gorocksdb.Iterator
-	readOpts  *gorocksdb.ReadOptions // Store readOpts for cleanup
+	iter      *grocksdb.Iterator
+	readOpts  *grocksdb.ReadOptions // Store readOpts for cleanup
 	start     []byte
 	end       []byte
 	reverse   bool

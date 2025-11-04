@@ -8,13 +8,13 @@ require (
 	github.com/dgraph-io/badger/v3 v3.2104.5
 	github.com/gin-gonic/gin v1.10.1
 	github.com/guptarohit/asciigraph v0.7.3
+	github.com/linxGnu/grocksdb v1.10.3
 	github.com/mattn/go-colorable v0.1.13
 	github.com/rs/zerolog v1.31.0
 	github.com/spf13/pflag v1.0.5
 	github.com/spf13/viper v1.5.0
-	github.com/stretchr/testify v1.9.0
+	github.com/stretchr/testify v1.11.1
 	github.com/syndtr/goleveldb v1.0.0
-	github.com/tecbot/gorocksdb v0.0.0-20191217155057-f0fad39f321c
 )
 
 require (
@@ -28,9 +28,6 @@ require (
 	github.com/dgraph-io/ristretto v0.1.1 // indirect
 	github.com/dgryski/go-farm v0.0.0-20200201041132-a6ae2369ad13 // indirect
 	github.com/dustin/go-humanize v1.0.0 // indirect
-	github.com/facebookgo/ensure v0.0.0-20200202191622-63f1cf65ac4c // indirect
-	github.com/facebookgo/stack v0.0.0-20160209184415-751773369052 // indirect
-	github.com/facebookgo/subset v0.0.0-20200203212716-c811ad88dec4 // indirect
 	github.com/fsnotify/fsnotify v1.4.8-0.20180830220226-ccc981bf8038 // indirect
 	github.com/gabriel-vasile/mimetype v1.4.3 // indirect
 	github.com/gin-contrib/sse v0.1.0 // indirect
