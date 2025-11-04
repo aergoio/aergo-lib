@@ -21,8 +21,31 @@ jobs:
       with:
         go-version: '1.23'
 
+    - name: Install RocksDB dependencies
+      run: sudo apt-get update && sudo apt-get install -y libsnappy-dev
+
+    - name: Cache RocksDB
+      id: cache-rocksdb
+      uses: actions/cache@v3
+      with:
+        path: /tmp/rocksdb
+        key: rocksdb-portable-10.5.1
+
+    - name: Build RocksDB
+      if: steps.cache-rocksdb.outputs.cache-hit != 'true'
+      run: |
+        cd /tmp
+        git clone --depth 1 --branch v10.5.1 https://github.com/facebook/rocksdb.git
+        cd rocksdb
+        PORTABLE=1 make static_lib -j$(nproc)
+
+    - name: Install RocksDB
+      run: |
+        cd /tmp/rocksdb
+        sudo make install-static
+
     - name: Build
-      run: go build -v ./...
+      run: CGO_ENABLED=1 go build -v ./...
 
     - name: Test
-      run: go test -v ./...
+      run: CGO_ENABLED=1 go test -v ./...

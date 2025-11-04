@@ -17,8 +17,42 @@ Package config provides an easy way to create and manage configurations for aerg
 
 ## db
 
-Package db is an wrapper of database implementations. Currently, this supports [badgerdb](https://github.com/dgraph-io/badger).
-More implementations (e.g. leveldb) will be updated in the future
+Package db is a wrapper of database implementations. Currently, this supports:
+- [BadgerDB](https://github.com/dgraph-io/badger)
+- [LevelDB](https://github.com/syndtr/goleveldb)
+- [RocksDB](https://rocksdb.org/)
+
+### RocksDB Requirements
+
+RocksDB requires CGO and the RocksDB C++ library to be installed on your system.
+
+**Ubuntu/Debian:**
+```bash
+sudo apt-get update
+sudo apt-get install -y librocksdb-dev
+```
+
+**Alpine Linux:**
+```bash
+apk add --no-cache rocksdb-dev build-base
+```
+
+**RedHat/CentOS/Fedora:**
+```bash
+sudo yum install -y rocksdb-devel
+# or on newer versions
+sudo dnf install -y rocksdb-devel
+```
+
+**macOS:**
+```bash
+brew install rocksdb
+```
+
+**Building with RocksDB:**
+```bash
+CGO_ENABLED=1 go build ./...
+```
 
 ## log
 

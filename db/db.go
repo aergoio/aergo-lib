@@ -73,6 +73,15 @@ func registerDBConstructor(dbimpl ImplType, constructor dbConstructor) {
 	dbImpls[dbimpl] = constructor
 }
 
+// GetRegisteredImpls returns the list of registered database implementations
+func GetRegisteredImpls() []ImplType {
+	var impls []ImplType
+	for impl := range dbImpls {
+		impls = append(impls, impl)
+	}
+	return impls
+}
+
 // NewDB creates new database or load existing database in the directory
 func NewDB(dbimpltype ImplType, dir string, options ...Option) DB {
 	// The default wrapper need 3 frames and badger wrapper need 1 frame to show actual stack trace.
