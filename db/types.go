@@ -15,6 +15,9 @@ const (
 	// LevelImpl represents a name of DB interface implementation using leveldb
 	LevelImpl ImplType = "leveldb"
 
+	// RocksImpl represents a name of DB interface implementation using rocksdb
+	RocksImpl ImplType = "rocksdb"
+
 	// MemoryImpl represents a name of DB interface implementation in memory
 	MemoryImpl ImplType = "memorydb"
 )
