@@ -75,7 +75,7 @@ func newRocksDB(dir string, opts ...Option) (DB, error) {
 			}
 		case "WriteBufferSize":
 			if bufferSize, ok := opt.Value.(uint64); ok {
-				options.SetWriteBufferSize(int(bufferSize))
+				options.SetWriteBufferSize(bufferSize)
 			}
 		case "MaxOpenFiles":
 			if maxFiles, ok := opt.Value.(int); ok {
