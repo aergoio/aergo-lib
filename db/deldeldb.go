@@ -11,7 +11,6 @@ import (
 	"os"
 	"path"
 	"sync"
-	"strconv"
 )
 
 // This function is always called first
