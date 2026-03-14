@@ -17,6 +17,7 @@ import (
 	"strconv"
 	"fmt"
 	"sync"
+	"time"
 )
 
 // This function is always called first
@@ -28,7 +29,7 @@ func init() {
 }
 
 func newDummyDB(dir string) (DB, error) {
-	var db []map[string][]byte
+	var data *dummydbData
 
 	// list all the db files
 	files, err := filepath.Glob(dir + "/db-*")
@@ -49,7 +50,8 @@ func newDummyDB(dir string) (DB, error) {
 			file, err := os.Open(files[pos])
 			if err == nil {
 				decoder := gob.NewDecoder(file)
-				err = decoder.Decode(&db)
+				data = &dummydbData{}
+				err = decoder.Decode(data)
 			}
 			file.Close()
 			// if there is any error
@@ -82,20 +84,65 @@ func newDummyDB(dir string) (DB, error) {
 		}
 	}
 
-	if db == nil {
-		db = make([]map[string][]byte, 0)
+	// Initialize circular buffer
+	var buffer []map[string][]byte
+	var head, size int
+
+	if data == nil {
+		// New database: initialize with genesis
+		buffer = make([]map[string][]byte, 512)
+		for i := range buffer {
+			buffer[i] = make(map[string][]byte)
+		}
+		head = 0 // head points to newest (genesis at position 0)
+		size = 0
+	} else {
+		// Loaded from file: use the saved data
+		buffer = data.Versions
+		head = data.Head
+		size = data.Size
 	}
 
 	database := &dummydb{
-		db:      db,
-		dir:     dir,
-		files:   files,
-		version: version,
+		db:        buffer,
+		head:      head,
+		size:      size,
+		dir:       dir,
+		files:     files,
+		version:   version,
+		dirty:     false,
+		saveTimer: time.NewTicker(15 * time.Second),
+		stopChan:  make(chan struct{}),
+		persistentKeys: map[string]bool{
+			"dpos.LibStatus": true,
+			"chain.latest":   true,
+			"r_identity":     true,
+			"r_state":        true,
+			"r_snap":         true,
+			"r_last":         true,
+		},
+		persistentPrefixes: []string{
+			"r_entry.",
+			"r_inv.",
+			"r_ccstatus.",
+		},
 	}
 
-	if len(db) == 0 {
-		database.add_version()
-	}
+	// Start the periodic save goroutine
+	go func() {
+		for {
+			select {
+			case <-database.saveTimer.C:
+				database.lock.Lock()
+				if database.dirty {
+					database.save()
+				}
+				database.lock.Unlock()
+			case <-database.stopChan:
+				return
+			}
+		}
+	}()
 
 	return database, nil
 }
@@ -112,12 +159,26 @@ var _ DB = (*dummydb)(nil)
 // the first element in the slice is the newest version
 // the last element in the slice is the oldest version
 
+// dummydbData represents the data that gets saved/loaded
+type dummydbData struct {
+	Versions []map[string][]byte // the version data
+	Head     int                 // index of newest version (1-511)
+	Size     int                 // current number of versions (1-512)
+}
+
 type dummydb struct {
-	lock    sync.Mutex
-	db      []map[string][]byte
-	dir     string
-	files   []string
-	version uint64
+	lock               sync.Mutex
+	db                 []map[string][]byte // now fixed size 512, index 0 is genesis
+	head               int                 // index of newest version (1-511)
+	size               int                 // current number of versions (1-512)
+	dir                string
+	files              []string
+	version            uint64
+	dirty              bool
+	saveTimer          *time.Ticker
+	stopChan           chan struct{}
+	persistentKeys     map[string]bool     // keys that should not be discarded
+	persistentPrefixes []string            // key prefixes that should not be discarded
 }
 
 func (db *dummydb) Type() string {
@@ -131,23 +192,42 @@ func (db *dummydb) Path() string {
 // add a new version to the database
 func (db *dummydb) add_version() {
 	logger.Debug().Msg("dummydb add_version")
-	// save the database to a file every 256 versions
-	if db.version%256 == 0 && db.version != 0 {
-		db.save()
+
+	// If the database is empty, store on the genesis block position
+	if db.size == 0 {
+		db.head = 0
+	} else {
+		// Move head to next position on the circular buffer
+		db.head++
+		if db.head >= 512 {
+			db.head = 1
+		}
 	}
-	db.version++
-	// add a new version to the database
-	db.db = append(db.db, make(map[string][]byte))
-	// check if the database has more than 512 versions. if it does,
-	// remove the version at position 1, keeping the genesis block at position 0
-	if len(db.db) == 513 {
-		// Remove the block at position 1
-		db.db = append(db.db[:1], db.db[2:]...)
-	} else if len(db.db) > 513 {
-		// Remove excess blocks, keeping only the first (genesis) and the last 511 blocks
-		start := len(db.db) - 511
-		db.db = append(db.db[:1], db.db[start:]...)
+
+	// Initialize/clear the slot on the circular buffer
+	db.db[db.head] = make(map[string][]byte)
+
+	// If not at max capacity, increase size
+	if db.size < 512 {
+		db.size++
 	}
+}
+
+// isPersistentKey checks if a key should be stored persistently in genesis
+func (db *dummydb) isPersistentKey(keyStr string) bool {
+	// Check exact key matches first
+	if db.persistentKeys[keyStr] {
+		return true
+	}
+
+	// Check prefix matches
+	for _, prefix := range db.persistentPrefixes {
+		if strings.HasPrefix(keyStr, prefix) {
+			return true
+		}
+	}
+
+	return false
 }
 
 // this function does not lock the mutex
@@ -156,10 +236,18 @@ func (db *dummydb) set(key, value []byte) {
 	key = convNilToBytes(key)
 	value = convNilToBytes(value)
 
-	// add the key-value pair to the last version
-	version := len(db.db) - 1
-	db.db[version][string(key)] = value
+	keyStr := string(key)
 
+	// Check if this key should not be discarded
+	if db.isPersistentKey(keyStr) {
+		// Store in genesis version (index 0)
+		db.db[0][keyStr] = value
+	} else {
+		// add the key-value pair to the newest/last version
+		db.db[db.head][keyStr] = value
+	}
+
+	db.dirty = true
 }
 
 // this function does not lock the mutex
@@ -172,6 +260,7 @@ func (db *dummydb) delete(key []byte) {
 		delete(kv, string(key))
 	}
 
+	db.dirty = true
 }
 
 // this function does not lock the mutex
@@ -180,12 +269,23 @@ func (db *dummydb) get(key []byte) []byte {
 	key = convNilToBytes(key)
 
 	// iterate over the database from the newest version to the oldest
-	// and return the value of the key if it exists
-	for i := len(db.db) - 1; i >= 0; i-- {
-		kv := db.db[i]
-		if value := kv[string(key)]; value != nil {
+	// Start from newest (at head)
+	current := db.head
+
+	// Iterate through all versions in circular buffer (newest to oldest)
+	for i := 0; i < db.size-1; i++ { // -1 because genesis is checked separately
+		if value := db.db[current][string(key)]; value != nil {
 			return value
 		}
+		current--
+		if current <= 0 {
+			current = 511
+		}
+	}
+
+	// Always check genesis last (it's the oldest)
+	if value := db.db[0][string(key)]; value != nil {
+		return value
 	}
 
 	// if the key does not exist, return nil
@@ -194,14 +294,14 @@ func (db *dummydb) get(key []byte) []byte {
 
 func (db *dummydb) Set(key, value []byte) {
 	db.lock.Lock()
-	//db.add_version()
+	db.add_version()
 	db.set(key, value)
 	db.lock.Unlock()
 }
 
 func (db *dummydb) Delete(key []byte) {
 	db.lock.Lock()
-	//db.add_version()
+	db.add_version()
 	db.delete(key)
 	db.lock.Unlock()
 }
@@ -230,6 +330,13 @@ func (db *dummydb) Exist(key []byte) bool {
 }
 
 func (db *dummydb) save() {
+	// Check if the database is dirty; if not, abort
+	if !db.dirty {
+		return
+	}
+
+	// Increment version for this save
+	db.version++
 
 	// use the version number in the file name
 	fileName := fmt.Sprintf("%s/db-%d", db.dir, db.version)
@@ -238,20 +345,18 @@ func (db *dummydb) save() {
 	// save the database to a file
 	file, err := os.OpenFile(fileName, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0666)
 	if err == nil {
+		data := dummydbData{
+			Versions: db.db,
+			Head:     db.head,
+			Size:     db.size,
+		}
 		encoder := gob.NewEncoder(file)
-		err = encoder.Encode(db.db)
+		err = encoder.Encode(data)
 		file.Close()
 	}
 	if err != nil {
 		logger.Error().Msg("dummydb - error saving to file: " + err.Error())
 		return
-	}
-
-	// check if it is already on the list
-	for _, file := range db.files {
-		if file == fileName {
-			return
-		}
 	}
 
 	// add it to the list of db files
@@ -263,9 +368,16 @@ func (db *dummydb) save() {
 		db.files = db.files[1:]
 	}
 
+	// Reset the dirty flag after successful save
+	db.dirty = false
+
 }
 
 func (db *dummydb) Close() {
+	// Stop the periodic save timer and signal goroutine to stop
+	db.saveTimer.Stop()
+	close(db.stopChan)
+
 	db.lock.Lock()
 	db.save()
 	db.lock.Unlock()
@@ -276,8 +388,6 @@ func (db *dummydb) IoCtl(ioCtlType string) {
 	defer db.lock.Unlock()
 
 	switch ioCtlType {
-	case "new-version":
-		db.add_version()
 	case "save":
 		db.save()
 	default:
@@ -367,7 +477,7 @@ func (transaction *dummyTransaction) Commit() {
 	db.lock.Lock()
 	defer db.lock.Unlock()
 
-	//db.add_version()
+	db.add_version()
 
 	for e := transaction.opList.Front(); e != nil; e = e.Next() {
 		op := e.Value.(*txOp)
@@ -434,7 +544,7 @@ func (bulk *dummyBulk) Flush() {
 	db.lock.Lock()
 	defer db.lock.Unlock()
 
-	//db.add_version()
+	db.add_version()
 
 	for e := bulk.opList.Front(); e != nil; e = e.Next() {
 		op := e.Value.(*txOp)
