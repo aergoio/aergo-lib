@@ -129,6 +129,9 @@ func (db *hashTableDB) Close() {
 	}
 }
 
+// SetCompactionEvent is a no-op: hashtabledb has no compaction.
+func (db *hashTableDB) SetCompactionEvent(event CompactionEventHandler) {}
+
 func (db *hashTableDB) IoCtl(ioCtlType string) {
 	// hashtabledb doesn't have a Sync method, so we just ignore the IoCtl call
 }

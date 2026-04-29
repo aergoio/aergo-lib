@@ -115,6 +115,9 @@ type Opt struct {
 	Value interface{}
 }
 
+// Option is an alias for Opt used by some DB implementations.
+type Option = Opt
+
 func (o Opt) String() string {
 	return fmt.Sprintf("%s=%v", o.Name, o.Value)
 }

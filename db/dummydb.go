@@ -383,6 +383,9 @@ func (db *dummydb) Close() {
 	db.lock.Unlock()
 }
 
+// SetCompactionEvent is a no-op: dummydb has no compaction.
+func (db *dummydb) SetCompactionEvent(event CompactionEventHandler) {}
+
 func (db *dummydb) IoCtl(ioCtlType string) {
 	db.lock.Lock()
 	defer db.lock.Unlock()
