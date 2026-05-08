@@ -346,10 +346,18 @@ type hashTableIterator struct {
 }
 
 func (db *hashTableDB) Iterator(start, end []byte) Iterator {
-	iter := db.db.NewIterator()
-
+	// hashtabledb is an unordered hash store; it cannot honor [start,end)
+	// bounds. Silently returning a full-DB iterator has caused callers
+	// (e.g. chain/chaindbForRaft.go::deleteByPrefix) to wipe entire
+	// databases. Refuse non-empty bounds so the bug surfaces loudly.
+	if len(start) > 0 || len(end) > 0 {
+		panic(fmt.Sprintf(
+			"hashtabledb: ranged Iterator(start=%q, end=%q) not supported; "+
+				"this engine is unordered and cannot scan a key range",
+			start, end))
+	}
 	return &hashTableIterator{
-		iter:      iter,
+		iter:      db.db.NewIterator(),
 		isInvalid: false,
 	}
 }
