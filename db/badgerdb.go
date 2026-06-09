@@ -700,7 +700,7 @@ type badgerIterator struct {
 }
 
 func (db *badgerDB) Iterator(start, end []byte) Iterator {
-	badgerTx := db.db.NewTransaction(true)
+	badgerTx := db.db.NewTransaction(false) // Read-only transaction
 
 	var reverse bool
 
