@@ -20,6 +20,9 @@ const (
 	// HashTableImpl represents a name of DB interface implementation using hashtabledb
 	HashTableImpl ImplType = "hashtabledb"
 
+	// RocksImpl represents a name of DB interface implementation using rocksdb
+	RocksImpl ImplType = "rocksdb"
+
 	// MemoryImpl represents a name of DB interface implementation in memory
 	MemoryImpl ImplType = "memorydb"
 
