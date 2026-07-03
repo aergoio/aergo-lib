@@ -7,7 +7,9 @@ package db
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
+	"strconv"
 
 	"github.com/aergoio/hashtabledb"
 )
@@ -30,6 +32,15 @@ func newHashTableDB(dir string, opts ...Option) (DB, error) {
 		"HashTableSize": 32 * 1024,  // number of pages in main hash table (128MB / 4kB = 32k pages)
 		"CacheSizeThreshold": "25%", // size of cache as percentage of available RAM
 		//"FastRollback": false,
+		"UseMmap": true,
+	}
+
+	if mmapSize := os.Getenv("HASHTABLEDB_MMAP_SIZE"); mmapSize != "" {
+		size, err := strconv.ParseInt(mmapSize, 10, 64)
+		if err != nil {
+			return nil, fmt.Errorf("invalid HASHTABLEDB_MMAP_SIZE %q: %w", mmapSize, err)
+		}
+		options["MmapSize"] = size
 	}
 
 	// Passed options
