@@ -413,11 +413,11 @@ func newBadgerDB(dir string, opt ...Opt) (DB, error) {
 
 	// attach compaction controller with db
 	if cmpControllerEnabled {
-		logger.Info().Int("port", port).Msg("Comapaction controller enabled")
+		logger.Info().Int("port", port).Msg("Compaction controller enabled")
 		cmpController := NewCompactionController(database, port)
 		cmpController.Start()
 	} else {
-		logger.Info().Msg("Comapaction controller not enabled")
+		logger.Info().Msg("Compaction controller not enabled")
 	}
 
 	go database.runBadgerGC()
