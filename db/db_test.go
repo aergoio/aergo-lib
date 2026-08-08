@@ -103,6 +103,11 @@ func TestTransactionSet(t *testing.T) {
 func TestTransactionDiscard(t *testing.T) {
 
 	for key := range dbImpls {
+		// HashTableDB does not support concurrent transactions on the same thread
+		if key == "hashtabledb" {
+			continue
+		}
+
 		dir, db := createTmpDB(key)
 
 		// create a new writable tx
@@ -120,6 +125,100 @@ func TestTransactionDiscard(t *testing.T) {
 		// after discard, the value must be reset at the db
 		assert.False(t, db.Exist([]byte(tmpDbTestKey1)), db.Type())
 
+		db.Close()
+		os.RemoveAll(dir)
+	}
+}
+
+func TestTransactionDiscardAfterCommit(t *testing.T) {
+
+	for key := range dbImpls {
+		// HashTableDB does not support concurrent transactions on the same thread
+		if key == "hashtabledb" {
+			continue
+		}
+
+		dir, db := createTmpDB(key)
+
+		// create a new writable tx
+		tx := db.NewTx()
+		// discard test
+		tx = db.NewTx()
+		// set the value in the tx
+		tx.Set([]byte(tmpDbTestKey1), []byte(tmpDbTestStrVal2))
+
+		// commit tx
+		tx.Commit()
+
+		// it should be no harm to discard tx after commit
+		assert.NotPanics(t, func() { tx.Discard() }, "discard after commit is not allowed (DB %s)", key)
+
+		// after discard, the value must be reset at the db
+		assert.True(t, db.Exist([]byte(tmpDbTestKey1)), db.Type())
+
+		db.Close()
+		os.RemoveAll(dir)
+	}
+}
+
+func TestConcurrentTransaction(t *testing.T) {
+
+	for key := range dbImpls {
+		// HashTableDB does not support concurrent transactions on the same thread
+		if key == "hashtabledb" {
+			continue
+		}
+
+		dir, db := createTmpDB(key)
+
+		// create a new writable tx
+		tx := db.NewTx()
+		// discard test
+		tx2 := db.NewTx()
+		// set the value with different key
+		tx.Set([]byte(tmpDbTestKey1), []byte(tmpDbTestStrVal1))
+		tx2.Set([]byte(tmpDbTestKey2), []byte(tmpDbTestStrVal2))
+
+		// commit tx
+		tx2.Commit()
+		tx.Commit()
+
+		assert.True(t, db.Exist([]byte(tmpDbTestKey1)), db.Type())
+		assert.True(t, db.Exist([]byte(tmpDbTestKey2)), db.Type())
+		assert.Equal(t, []byte(tmpDbTestStrVal1), db.Get([]byte(tmpDbTestKey1)), db.Type())
+		assert.Equal(t, []byte(tmpDbTestStrVal2), db.Get([]byte(tmpDbTestKey2)), db.Type())
+		db.Close()
+		os.RemoveAll(dir)
+	}
+}
+
+func TestTransactionCocurrentCommits(t *testing.T) {
+	// Note: BadgerDB implements "Last-Commit-Wins" concurrency control semantics.
+	// When two transactions modify the same data concurrently, the transaction that
+	// commits last will overwrite changes made by the earlier transaction without
+	// raising conflicts or errors.
+	for key := range dbImpls {
+		// HashTableDB does not support concurrent transactions on the same thread
+		if key == "hashtabledb" {
+			continue
+		}
+
+		dir, db := createTmpDB(key)
+
+		// create a new writable tx
+		tx := db.NewTx()
+		// discard test
+		tx2 := db.NewTx()
+		// set the value with different key
+		tx.Set([]byte(tmpDbTestKey1), []byte(tmpDbTestStrVal1))
+		tx2.Set([]byte(tmpDbTestKey1), []byte(tmpDbTestStrVal2))
+
+		// commit tx
+		tx.Commit()
+		tx2.Commit()
+
+		assert.True(t, db.Exist([]byte(tmpDbTestKey1)), db.Type())
+		assert.Equal(t, []byte(tmpDbTestStrVal2), db.Get([]byte(tmpDbTestKey1)), db.Type())
 		db.Close()
 		os.RemoveAll(dir)
 	}
@@ -200,6 +299,11 @@ func TestBulk(t *testing.T) {
 func TestIter(t *testing.T) {
 
 	for key := range dbImpls {
+		// HashTableDB iterates in no sorted order
+		if key == "hashtabledb" {
+			continue
+		}
+
 		dir, db := createTmpDB(key)
 
 		setInitData(db)
@@ -219,6 +323,11 @@ func TestIter(t *testing.T) {
 func TestRangeIter(t *testing.T) {
 
 	for key := range dbImpls {
+		// HashTableDB iterates in no sorted order
+		if key == "hashtabledb" {
+			continue
+		}
+
 		dir, db := createTmpDB(key)
 
 		setInitData(db)
@@ -250,6 +359,11 @@ func TestRangeIter(t *testing.T) {
 func TestReverseIter(t *testing.T) {
 
 	for key := range dbImpls {
+		// HashTableDB iterates in no sorted order
+		if key == "hashtabledb" {
+			continue
+		}
+
 		dir, db := createTmpDB(key)
 
 		setInitData(db)
