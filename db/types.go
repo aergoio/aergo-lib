@@ -15,8 +15,15 @@ const (
 	// LevelImpl represents a name of DB interface implementation using leveldb
 	LevelImpl ImplType = "leveldb"
 
+	// HashTableImpl represents a name of DB interface implementation using hashtabledb
+	HashTableImpl ImplType = "hashtabledb"
+
 	// MemoryImpl represents a name of DB interface implementation in memory
 	MemoryImpl ImplType = "memorydb"
+
+	// DummyImpl is a simple data store used for chain db in light nodes
+	// that only keeps the first block + the last 512 blocks
+	DummyImpl ImplType = "dummydb"
 )
 
 type dbConstructor func(dir string, options ...Option) (DB, error)
