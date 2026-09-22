@@ -5,7 +5,7 @@ go 1.23
 toolchain go1.24.2
 
 require (
-	github.com/aergoio/hashtabledb v0.0.0-20260808040708-13b4f29bcc3b
+	github.com/aergoio/hashtabledb v0.0.0-20260922061555-0d9709a03d57
 	github.com/dgraph-io/badger/v3 v3.2104.3
 	github.com/gin-gonic/gin v1.7.4
 	github.com/guptarohit/asciigraph v0.4.1
