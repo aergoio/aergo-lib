@@ -145,9 +145,9 @@ func (db *hashTableDB) NewTx() Transaction {
 }
 
 func (db *hashTableDB) NewBulk() Bulk {
-	tx, err := db.db.Begin()
+	tx, err := db.db.NewBulk()
 	if err != nil {
-		panic(fmt.Sprintf("Failed to begin bulk transaction: %v", err))
+		panic(fmt.Sprintf("Failed to begin bulk session: %v", err))
 	}
 	return &hashTableBulk{
 		tx:          tx,
@@ -254,7 +254,7 @@ func (transaction *hashTableTransaction) Discard() {
 //=========================================================
 
 type hashTableBulk struct {
-	tx          *hashtabledb.Transaction
+	tx          *hashtabledb.Bulk
 	isDiscarded bool
 	isCommitted bool
 }
@@ -299,7 +299,9 @@ func (bulk *hashTableBulk) Flush() {
 		panic("Flush occurs two times")
 	}
 
-	err := bulk.tx.Commit()
+	// the bulk session auto-commits sub-batches while it is open, so this
+	// only commits the final sub-batch and ends the session
+	err := bulk.tx.Flush()
 	if err != nil {
 		panic(fmt.Sprintf("Bulk Flush Error: %v", err))
 	}
@@ -313,26 +315,15 @@ func (bulk *hashTableBulk) Discard() {
 	}
 
 	if !bulk.isDiscarded {
-		err := bulk.tx.Rollback()
-		if err != nil {
-			panic(fmt.Sprintf("Bulk Rollback Error: %v", err))
-		}
+		// sub-batches already committed by the internal auto-commit stay
+		// committed; this rolls back to the last internal commit
+		bulk.tx.Discard()
 		bulk.isDiscarded = true
 	}
 }
 
 func (bulk *hashTableBulk) DiscardLast() {
-	if bulk.isCommitted {
-		return // Already committed, nothing to discard
-	}
-
-	if !bulk.isDiscarded {
-		err := bulk.tx.Rollback()
-		if err != nil {
-			panic(fmt.Sprintf("Bulk Rollback Error: %v", err))
-		}
-		bulk.isDiscarded = true
-	}
+	bulk.Discard()
 }
 
 //=========================================================
