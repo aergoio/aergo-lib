@@ -696,6 +696,7 @@ type badgerIterator struct {
 	start   []byte
 	end     []byte
 	reverse bool
+	txn     *badger.Txn
 	iter    *badger.Iterator
 }
 
@@ -723,9 +724,17 @@ func (db *badgerDB) Iterator(start, end []byte) Iterator {
 		start:   start,
 		end:     end,
 		reverse: reverse,
+		txn:     badgerTx,
 		iter:    badgerIter,
 	}
 	return retIter
+}
+
+// Close discards the iterator and its read transaction, releasing the read
+// timestamp the transaction pinned in the oracle and the iterator resources
+func (iter *badgerIterator) Close() {
+	iter.iter.Close()
+	iter.txn.Discard()
 }
 
 func (iter *badgerIterator) Next() {

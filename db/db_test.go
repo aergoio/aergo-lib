@@ -309,10 +309,12 @@ func TestIter(t *testing.T) {
 
 		i := 1
 
-		for iter := db.Iterator(nil, nil); iter.Valid(); iter.Next() {
+		iter := db.Iterator(nil, nil)
+		for ; iter.Valid(); iter.Next() {
 			assert.EqualValues(t, strconv.Itoa(i), string(iter.Key()))
 			i++
 		}
+		iter.Close()
 
 		db.Close()
 		os.RemoveAll(dir)
@@ -333,21 +335,25 @@ func TestRangeIter(t *testing.T) {
 
 		// test iteration 2 -> 5
 		i := 2
-		for iter := db.Iterator([]byte("2"), []byte("5")); iter.Valid(); iter.Next() {
+		iter := db.Iterator([]byte("2"), []byte("5"))
+		for ; iter.Valid(); iter.Next() {
 			assert.EqualValues(t, strconv.Itoa(i), string(iter.Key()))
 			assert.EqualValues(t, strconv.Itoa(i), string(iter.Value()))
 			i++
 		}
+		iter.Close()
 		assert.EqualValues(t, i, 5)
 
 		// nil sames with []byte("0")
 		// test iteration 0 -> 5
 		i = 1
-		for iter := db.Iterator(nil, []byte("5")); iter.Valid(); iter.Next() {
+		iter = db.Iterator(nil, []byte("5"))
+		for ; iter.Valid(); iter.Next() {
 			assert.EqualValues(t, strconv.Itoa(i), string(iter.Key()))
 			assert.EqualValues(t, strconv.Itoa(i), string(iter.Value()))
 			i++
 		}
+		iter.Close()
 		assert.EqualValues(t, i, 5)
 
 		db.Close()
@@ -369,21 +375,25 @@ func TestReverseIter(t *testing.T) {
 
 		// test reverse iteration 5 <- 2
 		i := 5
-		for iter := db.Iterator([]byte("5"), []byte("2")); iter.Valid(); iter.Next() {
+		iter := db.Iterator([]byte("5"), []byte("2"))
+		for ; iter.Valid(); iter.Next() {
 			assert.EqualValues(t, strconv.Itoa(i), string(iter.Key()))
 			assert.EqualValues(t, strconv.Itoa(i), string(iter.Value()))
 			i--
 		}
+		iter.Close()
 		assert.EqualValues(t, i, 2)
 
 		// nil sames with []byte("0")
 		// test reverse iteration 5 -> 0
 		i = 5
-		for iter := db.Iterator([]byte("5"), nil); iter.Valid(); iter.Next() {
+		iter = db.Iterator([]byte("5"), nil)
+		for ; iter.Valid(); iter.Next() {
 			assert.EqualValues(t, strconv.Itoa(i), string(iter.Key()))
 			assert.EqualValues(t, strconv.Itoa(i), string(iter.Value()))
 			i--
 		}
+		iter.Close()
 		assert.EqualValues(t, i, 0)
 
 		db.Close()
