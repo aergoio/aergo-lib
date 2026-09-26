@@ -67,4 +67,9 @@ type Iterator interface {
 	Valid() bool
 	Key() []byte
 	Value() []byte
+	// Close releases the resources the iterator holds (read transactions,
+	// snapshot registrations, file handles). It must be called when the
+	// iteration is finished, otherwise the engine cannot reclaim state the
+	// iterator pinned
+	Close()
 }

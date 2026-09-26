@@ -188,6 +188,12 @@ func (bulk *levelBulk) DiscardLast() {
 	bulk.isDiscard = true
 }
 
+func (iter *levelIterator) Close() {
+	// mark invalid first, so Valid() never touches the released iterator
+	iter.isInvalid = true
+	iter.iter.Release()
+}
+
 //=========================================================
 // Iterator Implementation
 //=========================================================
