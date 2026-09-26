@@ -385,3 +385,7 @@ func (iter *memoryIterator) Value() (value []byte) {
 
 	return iter.db.Get(key)
 }
+
+func (iter *memoryIterator) Close() {
+	iter.isInvalid = true
+}

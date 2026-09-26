@@ -670,3 +670,7 @@ func (iter *dummyIterator) Value() (value []byte) {
 
 	return iter.db.Get(key)
 }
+
+func (iter *dummyIterator) Close() {
+	iter.isInvalid = true
+}
