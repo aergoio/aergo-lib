@@ -167,6 +167,38 @@ func Test_badgerDB_CompactionController(t *testing.T) {
 	}
 }
 
+func Test_badgerBulk_LargeValues(t *testing.T) {
+	dir, db := createTmpDB(BadgerImpl)
+	defer func() {
+		db.Close()
+		os.RemoveAll(dir)
+	}()
+
+	bulk := db.NewBulk()
+
+	// a value bigger than the batch size badger enforces on a single
+	// transaction: the write batch must commit internally and keep writing
+	bigValue := make([]byte, 12<<20)
+	for i := range bigValue {
+		bigValue[i] = byte(i)
+	}
+	for i := 0; i < 5; i++ {
+		bulk.Set([]byte(fmt.Sprintf("big%d", i)), bigValue)
+	}
+	smallValue := make([]byte, 1<<20)
+	for i := 0; i < 10; i++ {
+		bulk.Set([]byte(fmt.Sprintf("small%d", i)), smallValue)
+	}
+	bulk.Flush()
+
+	for i := 0; i < 5; i++ {
+		assert.Equal(t, string(bigValue), string(db.Get([]byte(fmt.Sprintf("big%d", i)))), "big value %d", i)
+	}
+	for i := 0; i < 10; i++ {
+		assert.Equal(t, string(smallValue), string(db.Get([]byte(fmt.Sprintf("small%d", i)))), "small value %d", i)
+	}
+}
+
 func Test_readEnvInt64Value(t *testing.T) {
 	if logger == nil {
 		logger = newBadgerExtendedLog(log.NewLogger("db"))
