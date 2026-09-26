@@ -585,11 +585,10 @@ func (db *dummydb) Iterator(start, end []byte) Iterator {
 
 	var reverse bool
 
-	// if end is bigger than start, then reverse order
-	if bytes.Compare(start, end) == 1 {
+	// reverse order only when both bounds are set and start is past end; a
+	// nil end means no upper bound, never a reversed scan
+	if start != nil && end != nil && bytes.Compare(start, end) > 0 {
 		reverse = true
-	} else {
-		reverse = false
 	}
 
 	// create a list of unique keys using a map as a set
