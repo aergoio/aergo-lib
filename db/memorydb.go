@@ -320,11 +320,10 @@ func (db *memorydb) Iterator(start, end []byte) Iterator {
 
 	var reverse bool
 
-	// if end is bigger then start, then reverse order
-	if bytes.Compare(start, end) == 1 {
+	// reverse order only when both bounds are set and start is past end; a
+	// nil end means no upper bound, never a reversed scan
+	if start != nil && end != nil && bytes.Compare(start, end) > 0 {
 		reverse = true
-	} else {
-		reverse = false
 	}
 
 	var keys sort.StringSlice

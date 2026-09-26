@@ -82,7 +82,11 @@ type Bulk interface {
 	DiscardLast()
 }
 
-// Iterator is used to navigate specific key ranges
+// Iterator is used to navigate specific key ranges. The iteration is
+// ascending over the keys in [start, end): a nil start means from the
+// smallest key and a nil end means no upper bound. When both bounds are set
+// and start is greater than end, the iteration is descending over the keys
+// in (end, start]
 type Iterator interface {
 	Next()
 	Valid() bool

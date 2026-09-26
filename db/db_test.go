@@ -385,17 +385,29 @@ func TestReverseIter(t *testing.T) {
 		iter.Close()
 		assert.EqualValues(t, i, 2)
 
-		// nil sames with []byte("0")
-		// test reverse iteration 5 -> 0
+		// nil end means no upper bound, never a reversed scan:
+		// forward iteration 5 -> end
 		i = 5
 		iter = db.Iterator([]byte("5"), nil)
+		for ; iter.Valid(); iter.Next() {
+			assert.EqualValues(t, strconv.Itoa(i), string(iter.Key()))
+			assert.EqualValues(t, strconv.Itoa(i), string(iter.Value()))
+			i++
+		}
+		iter.Close()
+		assert.EqualValues(t, i, 8)
+
+		// descending iteration over both bounds set, start past end:
+		// reverse iteration 7 -> 1
+		i = 7
+		iter = db.Iterator([]byte("7"), []byte("1"))
 		for ; iter.Valid(); iter.Next() {
 			assert.EqualValues(t, strconv.Itoa(i), string(iter.Key()))
 			assert.EqualValues(t, strconv.Itoa(i), string(iter.Value()))
 			i--
 		}
 		iter.Close()
-		assert.EqualValues(t, i, 0)
+		assert.EqualValues(t, i, 1)
 
 		db.Close()
 		os.RemoveAll(dir)
