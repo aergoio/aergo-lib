@@ -53,7 +53,10 @@ type Transaction interface {
 }
 
 // Bulk is used to batch multiple transactions
-// This will internally commit transactions when reach maximum tx size
+// This will internally commit transactions when reach maximum tx size.
+// The key and value slices passed to Set and Delete must not be modified or
+// reused by the caller until Flush: engines may retain references to them
+// until the internal batch commits
 type Bulk interface {
 	Set(key, value []byte)
 	Delete(key []byte)
