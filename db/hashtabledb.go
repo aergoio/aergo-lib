@@ -122,6 +122,10 @@ func (db *hashTableDB) Get(key []byte) []byte {
 		}
 		panic(fmt.Sprintf("Database Error: %v", err))
 	}
+	// Copy the value: the engine may return a slice referencing its internal
+	// read-only buffers (mmap window), but this interface hands out values
+	// that callers own and may keep or modify
+	value = append(make([]byte, 0, len(value)), value...)
 	return value
 }
 
@@ -232,6 +236,10 @@ func (transaction *hashTableTransaction) Get(key []byte) []byte {
 		}
 		panic(fmt.Sprintf("Transaction Get Error: %v", err))
 	}
+	// Copy the value: the engine may return a slice referencing its internal
+	// read-only buffers (mmap window), but this interface hands out values
+	// that callers own and may keep or modify
+	value = append(make([]byte, 0, len(value)), value...)
 	return value
 }
 
