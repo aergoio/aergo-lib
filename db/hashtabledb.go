@@ -1,0 +1,419 @@
+/**
+ *  @file
+ *  @copyright defined in aergo/LICENSE.txt
+ */
+
+package db
+
+import (
+	"fmt"
+	"os"
+	"path/filepath"
+	"strconv"
+	"strings"
+
+	"github.com/aergoio/hashtabledb"
+)
+
+// This function is always called first
+func init() {
+	dbConstructor := func(dir string, opts ...Option) (DB, error) {
+		return newHashTableDB(dir, opts...)
+	}
+	registerDBConstructor(HashTableImpl, dbConstructor)
+}
+
+// validCacheSizeThreshold mirrors the formats accepted by hashtabledb: a
+// positive integer (pages) or a percentage of RAM like "25%"
+func validCacheSizeThreshold(s string) bool {
+	if strings.HasSuffix(s, "%") {
+		percent, err := strconv.ParseFloat(strings.TrimSuffix(s, "%"), 64)
+		return err == nil && percent > 0 && percent <= 100
+	}
+	pages, err := strconv.Atoi(s)
+	return err == nil && pages > 0
+}
+
+func newHashTableDB(dir string, opts ...Option) (DB, error) {
+	dbPath := filepath.Join(dir, "data.db")
+
+	// Default options
+	options := hashtabledb.Options{
+		//"HashTableSize": 32 * 1024, // number of pages in main hash table (128MB / 4kB = 32k pages)
+		"HashTableSize": 2 * 1024, // number of pages in main hash table (2k pages * 4KB / page = 8MB)
+	}
+
+	// CacheSizeThreshold is opt-in via HTDB_CACHE_SIZE
+	if cacheSize := os.Getenv("HTDB_CACHE_SIZE"); cacheSize != "" {
+		if !validCacheSizeThreshold(cacheSize) {
+			panic(fmt.Sprintf("invalid HTDB_CACHE_SIZE %q: must be a positive integer (pages) or a percentage of RAM like \"25%%\"", cacheSize))
+		}
+		options["CacheSizeThreshold"] = cacheSize
+	}
+
+	// Passed options
+	for _, opt := range opts {
+		options[opt.Name] = opt.Value
+	}
+
+	// Open hashtabledb database
+	db, err := hashtabledb.Open(dbPath, options)
+	if err != nil {
+		return nil, err
+	}
+
+	// DPOS
+	db.SetOption("AddMutableKey", []byte("dpos.LibStatus"))
+	db.SetOption("AddMutableKey", []byte("chain.latest"))
+
+	// Raft
+	db.SetOption("AddMutableKey", []byte("r_identity"))
+	db.SetOption("AddMutableKey", []byte("r_state"))
+	db.SetOption("AddMutableKey", []byte("r_snap"))
+	db.SetOption("AddMutableKey", []byte("r_last"))
+
+	database := &hashTableDB{
+		db:   db,
+		path: dbPath,
+	}
+
+	return database, nil
+}
+
+//=========================================================
+// DB Implementation
+//=========================================================
+
+// Enforce database and transaction implements interfaces
+var _ DB = (*hashTableDB)(nil)
+
+type hashTableDB struct {
+	db   *hashtabledb.DB
+	path string
+}
+
+func (db *hashTableDB) Type() string {
+	return "hashtabledb"
+}
+
+func (db *hashTableDB) Path() string {
+	return db.path
+}
+
+func (db *hashTableDB) Set(key, value []byte) {
+	key = convNilToBytes(key)
+	value = convNilToBytes(value)
+
+	err := db.db.Set(key, value)
+	if err != nil {
+		panic(fmt.Sprintf("Database Error: %v", err))
+	}
+}
+
+func (db *hashTableDB) Delete(key []byte) {
+	key = convNilToBytes(key)
+
+	err := db.db.Delete(key)
+	if err != nil {
+		panic(fmt.Sprintf("Database Error: %v", err))
+	}
+}
+
+func (db *hashTableDB) Get(key []byte) []byte {
+	key = convNilToBytes(key)
+
+	value, err := db.db.Get(key)
+	if err != nil {
+		// If key doesn't exist, return empty byte array
+		if err.Error() == "key not found" {
+			return []byte{}
+		}
+		panic(fmt.Sprintf("Database Error: %v", err))
+	}
+	// Copy the value: the engine may return a slice referencing its internal
+	// read-only buffers (mmap window), but this interface hands out values
+	// that callers own and may keep or modify
+	value = append(make([]byte, 0, len(value)), value...)
+	return value
+}
+
+func (db *hashTableDB) Exist(key []byte) bool {
+	key = convNilToBytes(key)
+
+	// hashtabledb doesn't have a Has/Exist method, so we use Get and check for errors
+	_, err := db.db.Get(key)
+	// If there's no error, the key exists
+	return err == nil
+}
+
+func (db *hashTableDB) Close() {
+	if err := db.db.Close(); err != nil {
+		panic(fmt.Sprintf("Database Error: %v", err))
+	}
+}
+
+func (db *hashTableDB) IoCtl(ioCtlType string) {
+	// hashtabledb doesn't have a Sync method, so we just ignore the IoCtl call
+}
+
+func (db *hashTableDB) NewTx() Transaction {
+	tx, err := db.db.Begin()
+	if err != nil {
+		panic(fmt.Sprintf("Failed to begin transaction: %v", err))
+	}
+	return &hashTableTransaction{
+		tx:          tx,
+		isDiscarded: false,
+		isCommitted: false,
+	}
+}
+
+func (db *hashTableDB) NewBulk() Bulk {
+	tx, err := db.db.NewBulk()
+	if err != nil {
+		panic(fmt.Sprintf("Failed to begin bulk session: %v", err))
+	}
+	return &hashTableBulk{
+		tx:          tx,
+		isDiscarded: false,
+		isCommitted: false,
+	}
+}
+
+//=========================================================
+// Transaction Implementation
+//=========================================================
+
+type hashTableTransaction struct {
+	tx          *hashtabledb.Transaction
+	isDiscarded bool
+	isCommitted bool
+}
+
+func (transaction *hashTableTransaction) Set(key, value []byte) {
+	if transaction.isDiscarded {
+		panic("Transaction has been discarded")
+	}
+	if transaction.isCommitted {
+		panic("Transaction has been committed")
+	}
+
+	key = convNilToBytes(key)
+	value = convNilToBytes(value)
+
+	err := transaction.tx.Set(key, value)
+	if err != nil {
+		panic(fmt.Sprintf("Transaction Set Error: %v", err))
+	}
+}
+
+func (transaction *hashTableTransaction) Delete(key []byte) {
+	if transaction.isDiscarded {
+		panic("Transaction has been discarded")
+	}
+	if transaction.isCommitted {
+		panic("Transaction has been committed")
+	}
+
+	key = convNilToBytes(key)
+
+	err := transaction.tx.Delete(key)
+	if err != nil {
+		panic(fmt.Sprintf("Transaction Delete Error: %v", err))
+	}
+}
+
+func (transaction *hashTableTransaction) Get(key []byte) []byte {
+	if transaction.isDiscarded {
+		panic("Transaction has been discarded")
+	}
+	if transaction.isCommitted {
+		panic("Transaction has been committed")
+	}
+
+	key = convNilToBytes(key)
+
+	value, err := transaction.tx.Get(key)
+	if err != nil {
+		// If key doesn't exist, return empty byte array
+		if err.Error() == "key not found" {
+			return []byte{}
+		}
+		panic(fmt.Sprintf("Transaction Get Error: %v", err))
+	}
+	// Copy the value: the engine may return a slice referencing its internal
+	// read-only buffers (mmap window), but this interface hands out values
+	// that callers own and may keep or modify
+	value = append(make([]byte, 0, len(value)), value...)
+	return value
+}
+
+func (transaction *hashTableTransaction) Commit() {
+	if transaction.isDiscarded {
+		panic("Commit after discard tx is not allowed")
+	} else if transaction.isCommitted {
+		panic("Commit occurs two times")
+	}
+
+	err := transaction.tx.Commit()
+	if err != nil {
+		panic(fmt.Sprintf("Transaction Commit Error: %v", err))
+	}
+
+	transaction.isCommitted = true
+}
+
+func (transaction *hashTableTransaction) Discard() {
+	if transaction.isCommitted {
+		return // Already committed, nothing to discard
+	}
+
+	if !transaction.isDiscarded {
+		err := transaction.tx.Rollback()
+		if err != nil {
+			panic(fmt.Sprintf("Transaction Rollback Error: %v", err))
+		}
+		transaction.isDiscarded = true
+	}
+}
+
+//=========================================================
+// Bulk Implementation
+//=========================================================
+
+type hashTableBulk struct {
+	tx          *hashtabledb.Bulk
+	isDiscarded bool
+	isCommitted bool
+}
+
+func (bulk *hashTableBulk) Set(key, value []byte) {
+	if bulk.isDiscarded {
+		panic("Bulk operation has been discarded")
+	}
+	if bulk.isCommitted {
+		panic("Bulk operation has been committed")
+	}
+
+	key = convNilToBytes(key)
+	value = convNilToBytes(value)
+
+	err := bulk.tx.Set(key, value)
+	if err != nil {
+		panic(fmt.Sprintf("Bulk Set Error: %v", err))
+	}
+}
+
+func (bulk *hashTableBulk) Delete(key []byte) {
+	if bulk.isDiscarded {
+		panic("Bulk operation has been discarded")
+	}
+	if bulk.isCommitted {
+		panic("Bulk operation has been committed")
+	}
+
+	key = convNilToBytes(key)
+
+	err := bulk.tx.Delete(key)
+	if err != nil {
+		panic(fmt.Sprintf("Bulk Delete Error: %v", err))
+	}
+}
+
+func (bulk *hashTableBulk) Flush() {
+	if bulk.isDiscarded {
+		panic("Flush after discard bulk is not allowed")
+	} else if bulk.isCommitted {
+		panic("Flush occurs two times")
+	}
+
+	// the bulk session auto-commits sub-batches while it is open, so this
+	// only commits the final sub-batch and ends the session
+	err := bulk.tx.Flush()
+	if err != nil {
+		panic(fmt.Sprintf("Bulk Flush Error: %v", err))
+	}
+
+	bulk.isCommitted = true
+}
+
+func (bulk *hashTableBulk) Discard() {
+	if bulk.isCommitted {
+		return // Already committed, nothing to discard
+	}
+
+	if !bulk.isDiscarded {
+		// sub-batches already committed by the internal auto-commit stay
+		// committed; this rolls back to the last internal commit
+		bulk.tx.Discard()
+		bulk.isDiscarded = true
+	}
+}
+
+func (bulk *hashTableBulk) DiscardLast() {
+	bulk.Discard()
+}
+
+//=========================================================
+// Iterator Implementation
+//=========================================================
+
+type hashTableIterator struct {
+	iter      *hashtabledb.Iterator
+	isInvalid bool
+}
+
+func (db *hashTableDB) Iterator(start, end []byte) Iterator {
+	// hashtabledb is an unordered hash store; it cannot honor [start,end)
+	// bounds. Silently returning a full-DB iterator has caused callers
+	// (e.g. chain/chaindbForRaft.go::deleteByPrefix) to wipe entire
+	// databases. Refuse non-empty bounds so the bug surfaces loudly.
+	if len(start) > 0 || len(end) > 0 {
+		panic(fmt.Sprintf(
+			"hashtabledb: ranged Iterator(start=%q, end=%q) not supported; "+
+				"this engine is unordered and cannot scan a key range",
+			start, end))
+	}
+	return &hashTableIterator{
+		iter:      db.db.NewIterator(),
+		isInvalid: false,
+	}
+}
+
+func (iter *hashTableIterator) Next() {
+	if !iter.Valid() {
+		panic("Iterator is Invalid")
+	}
+
+	iter.iter.Next()
+}
+
+func (iter *hashTableIterator) Valid() bool {
+	// Once invalid, forever invalid.
+	if iter.isInvalid {
+		return false
+	}
+
+	return iter.iter.Valid()
+}
+
+func (iter *hashTableIterator) Key() (key []byte) {
+	if !iter.Valid() {
+		panic("Iterator is Invalid")
+	}
+
+	return iter.iter.Key()
+}
+
+func (iter *hashTableIterator) Value() (value []byte) {
+	if !iter.Valid() {
+		panic("Iterator is Invalid")
+	}
+
+	return iter.iter.Value()
+}
+
+func (iter *hashTableIterator) Close() {
+	iter.isInvalid = true
+	iter.iter.Close()
+}

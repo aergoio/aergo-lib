@@ -15,8 +15,15 @@ const (
 	// LevelImpl represents a name of DB interface implementation using leveldb
 	LevelImpl ImplType = "leveldb"
 
+	// HashTableImpl represents a name of DB interface implementation using hashtabledb
+	HashTableImpl ImplType = "hashtabledb"
+
 	// MemoryImpl represents a name of DB interface implementation in memory
 	MemoryImpl ImplType = "memorydb"
+
+	// DummyImpl is a simple data store used for chain db in light nodes
+	// that only keeps the first block + the last 512 blocks
+	DummyImpl ImplType = "dummydb"
 )
 
 type dbConstructor func(dir string, options ...Option) (DB, error)
@@ -46,7 +53,10 @@ type Transaction interface {
 }
 
 // Bulk is used to batch multiple transactions
-// This will internally commit transactions when reach maximum tx size
+// This will internally commit transactions when reach maximum tx size.
+// The key and value slices passed to Set and Delete must not be modified or
+// reused by the caller until Flush: engines may retain references to them
+// until the internal batch commits
 type Bulk interface {
 	Set(key, value []byte)
 	Delete(key []byte)
@@ -54,10 +64,19 @@ type Bulk interface {
 	DiscardLast()
 }
 
-// Iterator is used to navigate specific key ranges
+// Iterator is used to navigate specific key ranges. The iteration is
+// ascending over the keys in [start, end): a nil start means from the
+// smallest key and a nil end means no upper bound. When both bounds are set
+// and start is greater than end, the iteration is descending over the keys
+// in (end, start]
 type Iterator interface {
 	Next()
 	Valid() bool
 	Key() []byte
 	Value() []byte
+	// Close releases the resources the iterator holds (read transactions,
+	// snapshot registrations, file handles). It must be called when the
+	// iteration is finished, otherwise the engine cannot reclaim state the
+	// iterator pinned
+	Close()
 }
