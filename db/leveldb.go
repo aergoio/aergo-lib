@@ -191,6 +191,12 @@ func (bulk *levelBulk) DiscardLast() {
 	bulk.isDiscard = true
 }
 
+func (iter *levelIterator) Close() {
+	// mark invalid first, so Valid() never touches the released iterator
+	iter.isInvalid = true
+	iter.iter.Release()
+}
+
 //=========================================================
 // Iterator Implementation
 //=========================================================
@@ -206,11 +212,10 @@ type levelIterator struct {
 func (db *levelDB) Iterator(start, end []byte) Iterator {
 	var reverse bool
 
-	// if end is bigger then start, then reverse order
-	if bytes.Compare(start, end) == 1 {
+	// reverse order only when both bounds are set and start is past end; a
+	// nil end means no upper bound, never a reversed scan
+	if start != nil && end != nil && bytes.Compare(start, end) > 0 {
 		reverse = true
-	} else {
-		reverse = false
 	}
 
 	iter := db.db.NewIterator(nil, nil)
