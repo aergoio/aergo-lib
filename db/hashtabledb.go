@@ -7,7 +7,10 @@ package db
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
+	"strconv"
+	"strings"
 
 	"github.com/aergoio/hashtabledb"
 )
@@ -20,15 +23,32 @@ func init() {
 	registerDBConstructor(HashTableImpl, dbConstructor)
 }
 
+// validCacheSizeThreshold mirrors the formats accepted by hashtabledb: a
+// positive integer (pages) or a percentage of RAM like "25%"
+func validCacheSizeThreshold(s string) bool {
+	if strings.HasSuffix(s, "%") {
+		percent, err := strconv.ParseFloat(strings.TrimSuffix(s, "%"), 64)
+		return err == nil && percent > 0 && percent <= 100
+	}
+	pages, err := strconv.Atoi(s)
+	return err == nil && pages > 0
+}
+
 func newHashTableDB(dir string, opts ...Option) (DB, error) {
 	dbPath := filepath.Join(dir, "data.db")
 
 	// Default options
 	options := hashtabledb.Options{
-		//"CacheSize": 1024 * 1024 * 1024, // 1GB
 		//"HashTableSize": 32 * 1024, // number of pages in main hash table (128MB / 4kB = 32k pages)
-		"HashTableSize": 2 * 1024,    // number of pages in main hash table (2k pages * 4KB / page = 8MB)
-		"CacheSizeThreshold": "25%",  // size of cache as percentage of available RAM
+		"HashTableSize": 2 * 1024, // number of pages in main hash table (2k pages * 4KB / page = 8MB)
+	}
+
+	// CacheSizeThreshold is opt-in via HTDB_CACHE_SIZE
+	if cacheSize := os.Getenv("HTDB_CACHE_SIZE"); cacheSize != "" {
+		if !validCacheSizeThreshold(cacheSize) {
+			panic(fmt.Sprintf("invalid HTDB_CACHE_SIZE %q: must be a positive integer (pages) or a percentage of RAM like \"25%%\"", cacheSize))
+		}
+		options["CacheSizeThreshold"] = cacheSize
 	}
 
 	// Passed options
