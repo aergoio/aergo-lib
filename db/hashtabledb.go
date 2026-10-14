@@ -49,6 +49,9 @@ func newHashTableDB(dir string, opts ...Option) (DB, error) {
 			panic(fmt.Sprintf("invalid HTDB_CACHE_SIZE %q: must be a positive integer (pages) or a percentage of RAM like \"25%%\"", cacheSize))
 		}
 		options["CacheSizeThreshold"] = cacheSize
+		// the adaptive cache manager would grow the threshold whenever RAM is
+		// comfortable, disable it so HTDB_CACHE_SIZE works as a hard limit
+		options["AdaptiveCacheEnabled"] = false
 	}
 
 	if mmapSize := os.Getenv("HASHTABLEDB_MMAP_SIZE"); mmapSize != "" {
