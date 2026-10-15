@@ -103,6 +103,11 @@ func TestTransactionSet(t *testing.T) {
 func TestTransactionDiscard(t *testing.T) {
 
 	for key := range dbImpls {
+		// HashTableDB does not support concurrent transactions on the same thread
+		if key == "hashtabledb" {
+			continue
+		}
+
 		dir, db := createTmpDB(key)
 
 		// create a new writable tx
@@ -128,6 +133,11 @@ func TestTransactionDiscard(t *testing.T) {
 func TestTransactionDiscardAfterCommit(t *testing.T) {
 
 	for key := range dbImpls {
+		// HashTableDB does not support concurrent transactions on the same thread
+		if key == "hashtabledb" {
+			continue
+		}
+
 		dir, db := createTmpDB(key)
 
 		// create a new writable tx
@@ -154,6 +164,11 @@ func TestTransactionDiscardAfterCommit(t *testing.T) {
 func TestConcurrentTransaction(t *testing.T) {
 
 	for key := range dbImpls {
+		// HashTableDB does not support concurrent transactions on the same thread
+		if key == "hashtabledb" {
+			continue
+		}
+
 		dir, db := createTmpDB(key)
 
 		// create a new writable tx
@@ -183,6 +198,11 @@ func TestTransactionCocurrentCommits(t *testing.T) {
 	// commits last will overwrite changes made by the earlier transaction without
 	// raising conflicts or errors.
 	for key := range dbImpls {
+		// HashTableDB does not support concurrent transactions on the same thread
+		if key == "hashtabledb" {
+			continue
+		}
+
 		dir, db := createTmpDB(key)
 
 		// create a new writable tx
@@ -278,16 +298,23 @@ func TestBulk(t *testing.T) {
 func TestIter(t *testing.T) {
 
 	for key := range dbImpls {
+		// HashTableDB iterates in no sorted order
+		if key == "hashtabledb" {
+			continue
+		}
+
 		dir, db := createTmpDB(key)
 
 		setInitData(db)
 
 		i := 1
 
-		for iter := db.Iterator(nil, nil); iter.Valid(); iter.Next() {
+		iter := db.Iterator(nil, nil)
+		for ; iter.Valid(); iter.Next() {
 			assert.EqualValues(t, strconv.Itoa(i), string(iter.Key()))
 			i++
 		}
+		iter.Close()
 
 		db.Close()
 		os.RemoveAll(dir)
@@ -297,27 +324,36 @@ func TestIter(t *testing.T) {
 func TestRangeIter(t *testing.T) {
 
 	for key := range dbImpls {
+		// HashTableDB iterates in no sorted order
+		if key == "hashtabledb" {
+			continue
+		}
+
 		dir, db := createTmpDB(key)
 
 		setInitData(db)
 
 		// test iteration 2 -> 5
 		i := 2
-		for iter := db.Iterator([]byte("2"), []byte("5")); iter.Valid(); iter.Next() {
+		iter := db.Iterator([]byte("2"), []byte("5"))
+		for ; iter.Valid(); iter.Next() {
 			assert.EqualValues(t, strconv.Itoa(i), string(iter.Key()))
 			assert.EqualValues(t, strconv.Itoa(i), string(iter.Value()))
 			i++
 		}
+		iter.Close()
 		assert.EqualValues(t, i, 5)
 
 		// nil sames with []byte("0")
 		// test iteration 0 -> 5
 		i = 1
-		for iter := db.Iterator(nil, []byte("5")); iter.Valid(); iter.Next() {
+		iter = db.Iterator(nil, []byte("5"))
+		for ; iter.Valid(); iter.Next() {
 			assert.EqualValues(t, strconv.Itoa(i), string(iter.Key()))
 			assert.EqualValues(t, strconv.Itoa(i), string(iter.Value()))
 			i++
 		}
+		iter.Close()
 		assert.EqualValues(t, i, 5)
 
 		db.Close()
@@ -328,28 +364,49 @@ func TestRangeIter(t *testing.T) {
 func TestReverseIter(t *testing.T) {
 
 	for key := range dbImpls {
+		// HashTableDB iterates in no sorted order
+		if key == "hashtabledb" {
+			continue
+		}
+
 		dir, db := createTmpDB(key)
 
 		setInitData(db)
 
 		// test reverse iteration 5 <- 2
 		i := 5
-		for iter := db.Iterator([]byte("5"), []byte("2")); iter.Valid(); iter.Next() {
+		iter := db.Iterator([]byte("5"), []byte("2"))
+		for ; iter.Valid(); iter.Next() {
 			assert.EqualValues(t, strconv.Itoa(i), string(iter.Key()))
 			assert.EqualValues(t, strconv.Itoa(i), string(iter.Value()))
 			i--
 		}
+		iter.Close()
 		assert.EqualValues(t, i, 2)
 
-		// nil sames with []byte("0")
-		// test reverse iteration 5 -> 0
+		// nil end means no upper bound, never a reversed scan:
+		// forward iteration 5 -> end
 		i = 5
-		for iter := db.Iterator([]byte("5"), nil); iter.Valid(); iter.Next() {
+		iter = db.Iterator([]byte("5"), nil)
+		for ; iter.Valid(); iter.Next() {
+			assert.EqualValues(t, strconv.Itoa(i), string(iter.Key()))
+			assert.EqualValues(t, strconv.Itoa(i), string(iter.Value()))
+			i++
+		}
+		iter.Close()
+		assert.EqualValues(t, i, 8)
+
+		// descending iteration over both bounds set, start past end:
+		// reverse iteration 7 -> 1
+		i = 7
+		iter = db.Iterator([]byte("7"), []byte("1"))
+		for ; iter.Valid(); iter.Next() {
 			assert.EqualValues(t, strconv.Itoa(i), string(iter.Key()))
 			assert.EqualValues(t, strconv.Itoa(i), string(iter.Value()))
 			i--
 		}
-		assert.EqualValues(t, i, 0)
+		iter.Close()
+		assert.EqualValues(t, i, 1)
 
 		db.Close()
 		os.RemoveAll(dir)
