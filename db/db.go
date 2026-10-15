@@ -77,13 +77,28 @@ func registerDBConstructor(dbimpl ImplType, constructor dbConstructor) {
 func NewDB(dbimpltype ImplType, dir string, options ...Option) DB {
 	// The default wrapper need 3 frames and badger wrapper need 1 frame to show actual stack trace.
 	logger = newBadgerExtendedLog(log.NewLogger("db"))
-	db, err := dbImpls[dbimpltype](dir, options...)
+
+	constructor, exists := dbImpls[dbimpltype]
+	if !exists {
+		panic(fmt.Sprintf("Database implementation '%s' not found. Available implementations: %v", string(dbimpltype), GetAvailableDBTypes()))
+	}
+
+	db, err := constructor(dir, options...)
 
 	if err != nil {
 		panic(fmt.Sprintf("Fail to Create New DB: %v", err))
 	}
 
 	return db
+}
+
+// GetAvailableDBTypes returns a list of available database types
+func GetAvailableDBTypes() []string {
+	var types []string
+	for implType := range dbImpls {
+		types = append(types, string(implType))
+	}
+	return types
 }
 
 func convNilToBytes(byteArray []byte) []byte {
