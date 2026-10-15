@@ -413,11 +413,11 @@ func newBadgerDB(dir string, opt ...Opt) (DB, error) {
 
 	// attach compaction controller with db
 	if cmpControllerEnabled {
-		logger.Info().Int("port", port).Msg("Comapaction controller enabled")
+		logger.Info().Int("port", port).Msg("Compaction controller enabled")
 		cmpController := NewCompactionController(database, port)
 		cmpController.Start()
 	} else {
-		logger.Info().Msg("Comapaction controller not enabled")
+		logger.Info().Msg("Compaction controller not enabled")
 	}
 
 	go database.runBadgerGC()
@@ -704,19 +704,19 @@ type badgerIterator struct {
 	start   []byte
 	end     []byte
 	reverse bool
+	txn     *badger.Txn
 	iter    *badger.Iterator
 }
 
 func (db *badgerDB) Iterator(start, end []byte) Iterator {
-	badgerTx := db.db.NewTransaction(true)
+	badgerTx := db.db.NewTransaction(false) // Read-only transaction
 
 	var reverse bool
 
-	// if end is bigger then start, then reverse order
-	if bytes.Compare(start, end) == 1 {
+	// reverse order only when both bounds are set and start is past end; a
+	// nil end means no upper bound, never a reversed scan
+	if start != nil && end != nil && bytes.Compare(start, end) > 0 {
 		reverse = true
-	} else {
-		reverse = false
 	}
 
 	opt := badger.DefaultIteratorOptions
@@ -731,9 +731,17 @@ func (db *badgerDB) Iterator(start, end []byte) Iterator {
 		start:   start,
 		end:     end,
 		reverse: reverse,
+		txn:     badgerTx,
 		iter:    badgerIter,
 	}
 	return retIter
+}
+
+// Close discards the iterator and its read transaction, releasing the read
+// timestamp the transaction pinned in the oracle and the iterator resources
+func (iter *badgerIterator) Close() {
+	iter.iter.Close()
+	iter.txn.Discard()
 }
 
 func (iter *badgerIterator) Next() {
